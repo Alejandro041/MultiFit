@@ -1,0 +1,523 @@
+/* Estilos específicos de la aplicación MultiFit */
+
+/* Layout principal */
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-layout {
+  display: flex;
+  flex: 1;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, var(--multifit-primary) 0%, #1e293b 100%);
+  min-height: calc(100vh - 70px);
+  padding: 2rem 0;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-link {
+  color: rgba(255, 255, 255, 0.8) !important;
+  padding: 1rem 2rem !important;
+  margin: 0.25rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all var(--transition-speed) ease;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.sidebar-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white !important;
+  transform: translateX(5px);
+}
+
+.sidebar-link.active {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Main content */
+.main-content {
+  flex: 1;
+  background-color: #f8fafc;
+  overflow-y: auto;
+}
+
+/* Header personalizado */
+.navbar-brand {
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--multifit-primary) !important;
+  text-decoration: none;
+}
+
+.navbar-brand:hover {
+  color: var(--primary-color) !important;
+  transform: scale(1.05);
+}
+
+/* Branch selector */
+.branch-selector {
+  border: 2px solid var(--multifit-primary);
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all var(--transition-speed) ease;
+}
+
+.branch-selector:focus {
+  border-color: var(--multifit-primary);
+  box-shadow: 0 0 0 0.2rem rgba(30, 64, 175, 0.25);
+}
+
+/* Cards mejoradas */
+.card {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all var(--transition-speed) ease;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+  background: linear-gradient(135deg, var(--multifit-primary), #3b82f6);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+/* Métricas del Dashboard */
+.metric-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 15px;
+  padding: 2rem;
+  text-align: center;
+  transition: all var(--transition-speed) ease;
+}
+
+.metric-card:hover {
+  transform: scale(1.02);
+}
+
+.metric-number {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.metric-label {
+  font-size: 1rem;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.metric-card.success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.metric-card.warning {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.metric-card.info {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* Tablas responsivas */
+.table {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.table thead th {
+  background-color: var(--multifit-primary);
+  color: white;
+  border: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
+}
+
+.table tbody tr {
+  transition: background-color var(--transition-speed) ease;
+}
+
+.table tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Botones personalizados */
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 0.5rem 1.5rem;
+  transition: all var(--transition-speed) ease;
+  border: none;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-multifit {
+  background: linear-gradient(135deg, var(--multifit-primary), #3b82f6);
+  color: white;
+}
+
+.btn-multifit:hover {
+  background: linear-gradient(135deg, #1e40af, #2563eb);
+  color: white;
+}
+
+/* Footer */
+.footer {
+  background: linear-gradient(135deg, var(--multifit-primary), #1e293b);
+  color: white;
+  padding: 2rem 0;
+}
+
+/* Página container */
+.page-container {
+  padding: 2rem 0;
+  min-height: auto;
+}
+
+.page-title {
+  color: var(--multifit-primary);
+  font-weight: 700;
+  margin-bottom: 2rem;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.page-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(135deg, var(--multifit-primary), #3b82f6);
+  border-radius: 2px;
+}
+
+/* Alerts personalizadas */
+.alert {
+  border: none;
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  font-weight: 500;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    min-height: auto;
+    position: fixed;
+    top: 70px;
+    left: -100%;
+    z-index: 1000;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar.show {
+    left: 0;
+  }
+  
+  .main-content {
+    width: 100%;
+  }
+  
+  .navbar-brand {
+    font-size: 1.25rem;
+  }
+  
+  .metric-card {
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .metric-number {
+    font-size: 2rem;
+  }
+  
+  .page-container {
+    padding: 1rem 0;
+  }
+}
+
+/* Estados de carga */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  flex-direction: column;
+}
+
+.loading-text {
+  margin-top: 1rem;
+  color: var(--multifit-secondary);
+  font-weight: 500;
+}
+
+/* 404 Page */
+.not-found {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.not-found h1 {
+  font-size: 6rem;
+  font-weight: 700;
+  color: var(--multifit-primary);
+  margin-bottom: 1rem;
+}
+
+.not-found h2 {
+  color: var(--multifit-secondary);
+  margin-bottom: 2rem;
+}
+
+/* Login Page Styles */
+.login-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.login-brand-panel {
+  background: linear-gradient(135deg, var(--multifit-primary) 0%, #1e293b 100%);
+  color: white;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-brand-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="1" fill="white" opacity="0.1"/><circle cx="10" cy="90" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+  opacity: 0.3;
+}
+
+.brand-content {
+  text-align: center;
+  z-index: 1;
+  position: relative;
+  max-width: 400px;
+  padding: 2rem;
+}
+
+.brand-title {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.brand-subtitle {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin-bottom: 3rem;
+  font-weight: 300;
+}
+
+.brand-features {
+  text-align: left;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.feature-icon {
+  margin-right: 1rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+}
+
+.feature-text h6 {
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.feature-text p {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.login-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: white;
+}
+
+.login-form-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-title {
+  color: var(--multifit-primary);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.login-subtitle {
+  font-size: 1rem;
+  margin-bottom: 2rem;
+}
+
+.form-label-custom {
+  font-weight: 600;
+  color: var(--multifit-primary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.form-control-custom {
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  transition: all var(--transition-speed) ease;
+}
+
+.form-control-custom:focus {
+  border-color: var(--multifit-primary);
+  box-shadow: 0 0 0 0.2rem rgba(30, 64, 175, 0.25);
+}
+
+.password-input-container {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--multifit-secondary);
+  padding: 0.25rem;
+}
+
+.password-toggle:hover {
+  color: var(--multifit-primary);
+}
+
+.remember-check .form-check-input:checked {
+  background-color: var(--multifit-primary);
+  border-color: var(--multifit-primary);
+}
+
+.forgot-password-link {
+  color: var(--multifit-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.forgot-password-link:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.login-button {
+  background: linear-gradient(135deg, var(--multifit-primary), #3b82f6);
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all var(--transition-speed) ease;
+}
+
+.login-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1e40af, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.support-link {
+  color: var(--multifit-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.support-link:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+/* Responsive adjustments for login */
+@media (max-width: 991px) {
+  .login-form-panel {
+    min-height: 100vh;
+  }
+  
+  .login-form-container {
+    max-width: 500px;
+  }
+  
+  .brand-title {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .login-form-panel {
+    padding: 1rem;
+  }
+  
+  .brand-title {
+    font-size: 2rem;
+  }
+  
+  .login-title {
+    font-size: 1.5rem;
+  }
+}

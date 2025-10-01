@@ -1,168 +1,195 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Alert, Form, Modal } from 'react-bootstrap';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { Building2, MapPin, Hash, Plus, CreditCard as Edit, Trash2 } from 'lucide-react';
 
 const Gimnasio = () => {
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [equipos, setEquipos] = useState([]);
+  const { user, sucursales, createSucursal } = useAuth();
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ name: '', code: '', address: '' });
+  const [isCreating, setIsCreating] = useState(false);
 
-  useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setEquipos([
-        { id: 1, nombre: 'Cinta de Correr Pro', categoria: 'Cardio', estado: 'Activo', ultimoMantenimiento: '2024-01-15' },
-        { id: 2, nombre: 'Prensa de Piernas', categoria: 'Fuerza', estado: 'Mantenimiento', ultimoMantenimiento: '2024-01-10' },
-        { id: 3, nombre: 'Elíptica Digital', categoria: 'Cardio', estado: 'Activo', ultimoMantenimiento: '2024-01-20' },
-        { id: 4, nombre: 'Banco Ajustable', categoria: 'Fuerza', estado: 'Activo', ultimoMantenimiento: '2024-01-18' },
-        { id: 5, nombre: 'Bicicleta Estática', categoria: 'Cardio', estado: 'Fuera de Servicio', ultimoMantenimiento: '2024-01-05' }
-      ]);
-      setLoading(false);
-    }, 1000);
-  }, []);
-
-  const getEstadoBadge = (estado) => {
-    switch (estado) {
-      case 'Activo':
-        return <span className="badge bg-success">{estado}</span>;
-      case 'Mantenimiento':
-        return <span className="badge bg-warning">{estado}</span>;
-      case 'Fuera de Servicio':
-        return <span className="badge bg-danger">{estado}</span>;
-      default:
-        return <span className="badge bg-secondary">{estado}</span>;
-    }
-  };
-
-  if (loading) {
+  if (user?.role !== 'SuperAdmin') {
     return (
-      <Container className="page-container">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p className="loading-text">Cargando información del gimnasio...</p>
+      <div className="flex-1 p-8 bg-gray-50">
+        <div className="max-w-md mx-auto text-center">
+          <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso Restringido</h2>
+          <p className="text-gray-600">Solo los SuperAdmin pueden gestionar sucursales.</p>
         </div>
-      </Container>
+      </div>
     );
   }
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsCreating(true);
+
+    try {
+      await createSucursal(formData);
+      setFormData({ name: '', code: '', address: '' });
+      setShowForm(false);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
   return (
-    <Container className="page-container fade-in">
-      <Row className="align-items-center mb-4">
-        <Col>
-          <h1 className="page-title">Gestión de Gimnasio</h1>
-        </Col>
-        <Col xs="auto">
-          <Button variant="primary" onClick={() => setShowModal(true)}>
-            Agregar Equipo
-          </Button>
-        </Col>
-      </Row>
+    <div className="flex-1 p-8 bg-gray-50">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestión de Sucursales</h1>
+          <p className="text-gray-600">Administra todas las ubicaciones de tu organización</p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Nueva Sucursal</span>
+        </button>
+      </div>
 
-      <Row className="g-4 mb-4">
-        <Col lg={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-success">{equipos.filter(e => e.estado === 'Activo').length}</h3>
-              <p className="mb-0 text-muted">Equipos Activos</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col lg={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-warning">{equipos.filter(e => e.estado === 'Mantenimiento').length}</h3>
-              <p className="mb-0 text-muted">En Mantenimiento</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col lg={4}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-danger">{equipos.filter(e => e.estado === 'Fuera de Servicio').length}</h3>
-              <p className="mb-0 text-muted">Fuera de Servicio</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      {/* Create Form */}
+      {showForm && (
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Crear Nueva Sucursal</h3>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre de la Sucursal
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ej: Sucursal Centro"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Código
+                </label>
+                <input
+                  type="text"
+                  name="code"
+                  value={formData.code}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ej: CTR001"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Dirección
+              </label>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Dirección completa"
+                required
+              />
+            </div>
+            <div className="flex space-x-4">
+              <button
+                type="submit"
+                disabled={isCreating}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
+              >
+                {isCreating ? 'Creando...' : 'Crear Sucursal'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
-      <Card>
-        <Card.Header>
-          <h5 className="mb-0">Equipamiento del Gimnasio</h5>
-        </Card.Header>
-        <Card.Body>
-          <Table responsive hover>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Categoría</th>
-                <th>Estado</th>
-                <th>Último Mantenimiento</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {equipos.map((equipo) => (
-                <tr key={equipo.id}>
-                  <td>#{equipo.id}</td>
-                  <td>{equipo.nombre}</td>
-                  <td>{equipo.categoria}</td>
-                  <td>{getEstadoBadge(equipo.estado)}</td>
-                  <td>{equipo.ultimoMantenimiento}</td>
-                  <td>
-                    <Button size="sm" variant="outline-primary" className="me-2">
-                      Editar
-                    </Button>
-                    <Button size="sm" variant="outline-warning">
-                      Mantenimiento
-                    </Button>
-                  </td>
-                </tr>
+      {/* Sucursales List */}
+      <div className="bg-white rounded-xl shadow-sm">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Sucursales Existentes ({sucursales.length})
+          </h3>
+        </div>
+        <div className="p-6">
+          {sucursales.length === 0 ? (
+            <div className="text-center py-12">
+              <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay sucursales</h3>
+              <p className="text-gray-500 mb-6">Crea tu primera sucursal para comenzar</p>
+              <button
+                onClick={() => setShowForm(true)}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
+              >
+                Crear Primera Sucursal
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sucursales.map((sucursal) => (
+                <div key={sucursal.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{sucursal.name}</h4>
+                        <div className="flex items-center space-x-1 text-sm text-gray-500">
+                          <Hash className="w-3 h-3" />
+                          <span>{sucursal.code}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors duration-200">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button className="p-2 text-gray-400 hover:text-red-600 transition-colors duration-200">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2 text-sm text-gray-600">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>{sucursal.address}</span>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Miembros:</span>
+                      <span className="font-medium">127</span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-500">Personal:</span>
+                      <span className="font-medium">8</span>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
-
-      {/* Modal para agregar equipo */}
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Agregar Nuevo Equipo</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Nombre del Equipo</Form.Label>
-              <Form.Control type="text" placeholder="Ingrese el nombre del equipo" />
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Categoría</Form.Label>
-              <Form.Select>
-                <option>Seleccione una categoría</option>
-                <option value="Cardio">Cardio</option>
-                <option value="Fuerza">Fuerza</option>
-                <option value="Funcional">Funcional</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3">
-              <Form.Label>Estado</Form.Label>
-              <Form.Select>
-                <option value="Activo">Activo</option>
-                <option value="Mantenimiento">Mantenimiento</option>
-                <option value="Fuera de Servicio">Fuera de Servicio</option>
-              </Form.Select>
-            </Form.Group>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
-            Cancelar
-          </Button>
-          <Button variant="primary">
-            Guardar Equipo
-          </Button>
-        </Modal.Footer>
-      </Modal>
-    </Container>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

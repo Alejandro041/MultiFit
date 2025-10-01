@@ -1,141 +1,125 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Header from './components/Header.jsx';
-import Sidebar from './components/Sidebar.jsx';
-import Footer from './components/Footer.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Gimnasio from './pages/Gimnasio.jsx';
-import Miembros from './pages/Miembros.jsx';
-import Pagos from './pages/Pagos.jsx';
-import Perfil from './pages/Perfil.jsx';
-import Planificaciones from './pages/Planificaciones.jsx';
-import NotFound from './pages/NotFound.jsx';
-import Login from './pages/Login.jsx';
-import ProtectedRoute from './components/Protectedroute.jsx';
-import './style/App.css';
+import { AuthProvider, useAuth } from './context/AuthContext';
+
+// Importaciones de Componentes y Páginas
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Gimnasio from './pages/Gimnasio';
+import Miembros from './pages/Miembros';
+import Planificaciones from './pages/Planificaciones';
+import Pagos from './pages/Pagos';
+import Sidebar from './components/Sidebar';
+
+// Layout para páginas protegidas
+const ProtectedLayout = ({ children }) => (
+  <div className="flex h-screen bg-gray-50">
+    <Sidebar />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 overflow-y-auto p-8">
+        {children}
+      </main>
+    </div>
+  </div>
+);
+
+function AppRoutes() {
+  const { isLoading, user } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-xl font-medium text-gray-700">Iniciando aplicación...</div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      {/* Ruta Pública: Login */}
+      <Route path="/login" element={<Login />} />
+      
+      {/* Rutas Protegidas con Layout */}
+      <Route 
+        path="/dashboard" 
+        element={
+          user ? (
+            <ProtectedLayout>
+              <Dashboard />
+            </ProtectedLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+      
+      <Route 
+        path="/gimnasio" 
+        element={
+          user ? (
+            <ProtectedLayout>
+              <Gimnasio />
+            </ProtectedLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+      
+      <Route 
+        path="/miembros" 
+        element={
+          user ? (
+            <ProtectedLayout>
+              <Miembros />
+            </ProtectedLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+
+      {/* AÑADE ESTAS RUTAS FALTANTES: */}
+      <Route 
+        path="/planificaciones" 
+        element={
+          user ? (
+            <ProtectedLayout>
+              <Planificaciones />
+            </ProtectedLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+
+      <Route 
+        path="/pagos" 
+        element={
+          user ? (
+            <ProtectedLayout>
+              <Pagos />
+            </ProtectedLayout>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } 
+      />
+
+      {/* Redirigir según autenticación */}
+      <Route 
+        path="*" 
+        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} 
+      />
+    </Routes>
+  );
+}
 
 function App() {
   return (
-    <Routes>
-      {/* La ruta de login es pública y no requiere autenticación */}
-      <Route path="/login" element={<Login />} />
-
-      {/* Redirecciona la ruta raíz a /dashboard */}
-      <Route path="/" element={<Navigate to="/dashboard" />} />
-
-      {/* Todas las rutas que requieren autenticación se envuelven en ProtectedRoute */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Dashboard />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Repite este patrón para todas las demás rutas protegidas */}
-      <Route
-        path="/gimnasio"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Gimnasio />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/miembros"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Miembros />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-      
-      <Route
-        path="/pagos"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Pagos />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/perfil"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Perfil />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/planificaciones"
-        element={
-          <ProtectedRoute>
-            <div className="App">
-              <Header />
-              <div className="app-layout">
-                <Sidebar />
-                <main className="main-content">
-                  <Planificaciones />
-                </main>
-              </div>
-              <Footer />
-            </div>
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Ruta para el "404 Not Found" */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 

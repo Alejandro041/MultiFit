@@ -1,47 +1,59 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { supabase } from "./supabaseClient";
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn("Supabase env vars missing. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
-}
-
-const buildAuthRequest = (body) => ({
-  method: "POST",
-  headers: {
-    apikey: SUPABASE_ANON_KEY,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify(body)
-});
-
-export const loginWithSupabase = async (email, password) => {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, buildAuthRequest({ email, password }));
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Auth error" }));
-    throw new Error(error.error_description || error.message || "Credenciales invalidas");
+const normalizeSessionPayload = ({ session, user }) => {
+  if (!session || !session.access_token) {
+    throw new Error("No se pudo obtener la sesion de Supabase");
   }
 
-  return response.json();
+  return {
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_in: session.expires_in ?? 3600,
+    user: user ?? session.user
+  };
+};
+
+export const loginWithSupabase = async (email, password) => {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    throw new Error(error.message || "Credenciales invalidas");
+  }
+
+  return normalizeSessionPayload(data);
 };
 
 export const signUpWithSupabase = async (email, password, metadata = {}) => {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/signup`, buildAuthRequest({ email, password, data: metadata }));
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: metadata
+    }
+  });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Signup error" }));
-    throw new Error(error.error_description || error.message || "No se pudo crear el usuario");
+  if (error) {
+    throw new Error(error.message || "No se pudo crear el usuario");
   }
 
-  return response.json();
+  if (!data.session) {
+    return {
+      access_token: null,
+      refresh_token: null,
+      expires_in: null,
+      user: data.user
+    };
+  }
+
+  return normalizeSessionPayload(data);
 };
 
 export const refreshSupabaseToken = async (refreshToken) => {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, buildAuthRequest({ refresh_token: refreshToken }));
+  const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
 
-  if (!response.ok) {
-    throw new Error("No se pudo refrescar la sesion");
+  if (error) {
+    throw new Error(error.message || "No se pudo refrescar la sesion");
   }
 
-  return response.json();
+  return normalizeSessionPayload(data);
 };

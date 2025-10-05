@@ -101,6 +101,17 @@ export const AuthProvider = ({ children }) => {
     return nextSession;
   }, [persistSession]);
 
+  const bootstrapProfile = useCallback(async () => {
+    try {
+      const response = await post("/api/bootstrap", {});
+      return response?.data ?? null;
+    } catch (err) {
+      console.error("[AuthContext] Bootstrap profile failed", err);
+      setError((current) => current ?? err);
+      return null;
+    }
+  }, []);
+
   const hydrateContext = useCallback(async (activeSession) => {
     if (!activeSession?.accessToken || !activeSession.user) {
       setIsLoading(false);
@@ -112,27 +123,52 @@ export const AuthProvider = ({ children }) => {
     setError(null);
 
     try {
+      await bootstrapProfile();
+
       const userId = activeSession.user.id;
-      const [{ data: userRow }, rolesRes, userOrgRes, orgRes, gymsRes, personasRes, miembrosRes] = await Promise.all([
-        get(`/api/usuario/${userId}`),
-        get("/api/rol"),
-        get("/api/usuario-organizations"),
-        get("/api/organizations"),
-        get("/api/gyms"),
-        get("/api/persona"),
-        get("/api/miembro")
+
+      const requestData = async (requestFn, { fallback = null, requiredMessage = null } = {}) => {
+        try {
+          const response = await requestFn();
+          return response?.data ?? fallback;
+        } catch (requestError) {
+          const apiMessage = requestError?.response?.data?.message;
+          const message = apiMessage || requestError.message || "No se pudo completar la solicitud";
+          console.error("[AuthContext] Request failed", { message });
+          if (requiredMessage) {
+            throw new Error(requiredMessage);
+          }
+          setError((current) => current ?? new Error(message));
+          return fallback;
+        }
+      };
+
+      const userRow = await requestData(() => get(`/api/usuarios/${userId}`), {
+        fallback: {
+          id: userId,
+          email: activeSession.user.email,
+          persona_id: null
+        }
+      });
+
+      const [rolesList, userOrgList, orgList, gymsList, personasList, miembrosList] = await Promise.all([
+        requestData(() => get("/api/roles"), { fallback: [] }),
+        requestData(() => get("/api/usuario-organizations"), { fallback: [] }),
+        requestData(() => get("/api/organizations"), { fallback: [] }),
+        requestData(() => get("/api/gyms"), { fallback: [] }),
+        requestData(() => get("/api/personas"), { fallback: [] }),
+        requestData(() => get("/api/miembros"), { fallback: [] })
       ]);
 
-      setRoles(rolesRes.data ?? []);
+      setRoles(Array.isArray(rolesList) ? rolesList : []);
 
       let personaRow = null;
       if (userRow?.persona_id) {
-        const personaResponse = await get(`/api/persona/${userRow.persona_id}`);
-        personaRow = personaResponse.data ?? null;
+        personaRow = await requestData(() => get(`/api/personas/${userRow.persona_id}`), { fallback: null });
       }
 
-      const organizations = orgRes.data ?? [];
-      const userOrganizations = (userOrgRes.data ?? []).filter(
+      const organizations = Array.isArray(orgList) ? orgList : [];
+      const userOrganizations = (Array.isArray(userOrgList) ? userOrgList : []).filter(
         (relation) => relation.user_id === userId && relation.is_active !== false
       );
       const primaryOrgId = userOrganizations[0]?.organization_id ?? organizations[0]?.id ?? null;
@@ -140,16 +176,16 @@ export const AuthProvider = ({ children }) => {
 
       setEmpresa(activeOrg);
 
-      const gyms = (gymsRes.data ?? []).filter((gym) => !activeOrg || gym.organization_id === activeOrg.id);
+      const gyms = (Array.isArray(gymsList) ? gymsList : []).filter((gym) => !activeOrg || gym.organization_id === activeOrg.id);
       setSucursales(gyms);
 
-      const personas = personasRes.data ?? [];
-      const miembrosData = miembrosRes.data ?? [];
+      const personas = Array.isArray(personasList) ? personasList : [];
+      const miembrosData = Array.isArray(miembrosList) ? miembrosList : [];
       setMiembros(buildMemberList(personas, miembrosData, gyms));
 
       const roleId = userOrganizations[0]?.rol_id ?? null;
       const roleName = roleId
-        ? (rolesRes.data ?? []).find((role) => role.id === roleId)?.name ?? "Usuario"
+        ? (Array.isArray(rolesList) ? rolesList : []).find((role) => role.id === roleId)?.name ?? "Usuario"
         : "Usuario";
 
       setUser({
@@ -167,7 +203,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [clearSession]);
+  }, [clearSession, bootstrapProfile]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -223,6 +259,7 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       try {
         const response = await signUpWithSupabase(email, password, { full_name: name });
+
         if (response?.access_token) {
           const sessionData = {
             accessToken: response.access_token,
@@ -232,10 +269,26 @@ export const AuthProvider = ({ children }) => {
           };
           persistSession(sessionData);
           await hydrateContext(sessionData);
-        } else {
-          setIsLoading(false);
-          throw new Error("Verifica tu correo para completar el registro");
+          return;
         }
+
+        const registeredUserId = response?.user?.id;
+
+        if (!registeredUserId) {
+          throw new Error("No se pudo confirmar el usuario recien creado");
+        }
+
+        await post("/auth/confirm-signup", { userId: registeredUserId });
+
+        const loginSession = await loginWithSupabase(email, password);
+        const sessionData = {
+          accessToken: loginSession.access_token,
+          refreshToken: loginSession.refresh_token,
+          expiresAt: computeExpiry(loginSession.expires_in),
+          user: loginSession.user
+        };
+        persistSession(sessionData);
+        await hydrateContext(sessionData);
       } catch (err) {
         setIsLoading(false);
         setError(err);
@@ -259,7 +312,7 @@ export const AuthProvider = ({ children }) => {
         status: "active"
       });
 
-      const rolesList = roles.length ? roles : (await get("/api/rol")).data ?? [];
+      const rolesList = roles.length ? roles : (await get("/api/roles")).data ?? [];
       const superAdminRole = rolesList.find((role) => role.name?.toLowerCase() === "superadmin");
 
       if (superAdminRole && user) {
@@ -311,7 +364,7 @@ export const AuthProvider = ({ children }) => {
       const trimmedName = name?.trim() ?? "";
       const [firstName, ...rest] = trimmedName.split(/\s+/);
       const lastName = rest.join(" ") || "SinApellido";
-      const personaResponse = await post("/api/persona", {
+      const personaResponse = await post("/api/personas", {
         document_number: documentNumber || `DOC-${Date.now()}`,
         first_name: firstName || "SinNombre",
         last_name: lastName,
@@ -323,7 +376,7 @@ export const AuthProvider = ({ children }) => {
 
       const persona = personaResponse.data;
 
-      await post("/api/miembro", {
+      await post("/api/miembros", {
         persona_id: persona.id,
         membership_status: "active",
         notes: JSON.stringify({ appRole: memberRole || "Miembro" })

@@ -3,6 +3,7 @@ import cors from "cors";
 import { requireAuth } from "./middleware/auth";
 import { modules } from "./modules";
 import { notFoundHandler, errorHandler } from "./middleware/error";
+import { confirmSignupHandler } from "./routes/publicAuth";
 
 export const createApp = () => {
   const app = express();
@@ -13,6 +14,8 @@ export const createApp = () => {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.post("/auth/confirm-signup", confirmSignupHandler);
 
   app.use(requireAuth);
 

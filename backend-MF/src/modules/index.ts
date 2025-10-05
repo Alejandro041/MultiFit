@@ -12,6 +12,7 @@ import rutina from "./rutina";
 import tipoMembresia from "./tipo-membresia";
 import usuario from "./usuario";
 import usuarioOrganization from "./usuario-organization";
+import bootstrap from "./bootstrap";
 
 export const modules = [
   asignacionRutina,
@@ -27,7 +28,8 @@ export const modules = [
   rutina,
   tipoMembresia,
   usuario,
-  usuarioOrganization
+  usuarioOrganization,
+  bootstrap
 ];
 
 export type ModuleDefinition = (typeof modules)[number];

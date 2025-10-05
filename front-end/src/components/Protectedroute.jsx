@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom'; // Se necesita Outlet
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../Context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = () => {

@@ -1,34 +1,75 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { 
-  Building2, 
-  Users, 
-  CreditCard, 
-  TrendingUp, 
+import React, { useMemo, useState } from "react";
+import { useAuth } from "../Context/AuthContext";
+import {
+  Building2,
+  Users,
+  CreditCard,
+  TrendingUp,
   CheckCircle,
   Calendar,
   Activity,
   Dumbbell
-} from 'lucide-react';
+} from "lucide-react";
 
 const Dashboard = () => {
-  const { user, empresa, createEmpresa, refreshContext } = useAuth();
-  const [organizationName, setOrganizationName] = useState('');
+  const { user, empresa, sucursales, miembros, createEmpresa, isLoading } = useAuth();
+  const [organizationName, setOrganizationName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [formError, setFormError] = useState(null);
 
-  const handleCreateOrganization = async (e) => {
-    e.preventDefault();
+  const stats = useMemo(
+    () => [
+      {
+        label: "Miembros activos",
+        value: miembros.length.toString(),
+        icon: Users,
+        color: "from-blue-600 to-blue-700"
+      },
+      {
+        label: "Sucursales",
+        value: sucursales.length.toString(),
+        icon: Building2,
+        color: "from-purple-600 to-purple-700"
+      },
+      {
+        label: "Pagos procesados",
+        value: "$0",
+        icon: CreditCard,
+        color: "from-green-600 to-green-700"
+      },
+      {
+        label: "Clases programadas",
+        value: "0",
+        icon: Calendar,
+        color: "from-orange-600 to-orange-700"
+      }
+    ],
+    [miembros.length, sucursales.length]
+  );
+
+  const handleCreateOrganization = async (event) => {
+    event.preventDefault();
     if (!organizationName.trim()) return;
-
     setIsCreating(true);
+    setFormError(null);
+
     try {
-      await createEmpresa(organizationName);
-      await refreshContext();
-      setOrganizationName('');
+      await createEmpresa(organizationName.trim());
+      setOrganizationName("");
+    } catch (err) {
+      setFormError(err.message || "No se pudo crear la organizacion");
     } finally {
       setIsCreating(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className="text-gray-600">Cargando datos...</div>
+      </div>
+    );
+  }
 
   if (!empresa) {
     return (
@@ -36,29 +77,32 @@ const Dashboard = () => {
         <div className="max-w-2xl mx-auto">
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white text-center mb-8">
             <Building2 className="w-16 h-16 mx-auto mb-4 opacity-90" />
-            <h2 className="text-3xl font-bold mb-4">¡Bienvenido a GymApp!</h2>
+            <h2 className="text-3xl font-bold mb-4">Bienvenido a GymApp</h2>
             <p className="text-blue-100">
-              Como primer SuperAdmin, necesitas configurar tu organización para comenzar.
+              Como primer usuario debes crear la organizacion para comenzar a operar.
             </p>
           </div>
 
           <div className="bg-white rounded-xl shadow-lg p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Configura tu Organización</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Configura tu organizacion</h3>
+            {formError && (
+              <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{formError}</div>
+            )}
             <form onSubmit={handleCreateOrganization} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Nombre de la Organización
+                  Nombre de la organizacion
                 </label>
                 <input
                   type="text"
                   value={organizationName}
-                  onChange={(e) => setOrganizationName(e.target.value)}
+                  onChange={(event) => setOrganizationName(event.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Ej: FitZone, PowerGym, etc."
+                  placeholder="Ej: FitZone, PowerGym"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-2">
-                  Este será el nombre principal de tu cadena de gimnasios.
+                  Este sera el nombre principal de tu cadena de gimnasios.
                 </p>
               </div>
 
@@ -67,16 +111,16 @@ const Dashboard = () => {
                 disabled={isCreating}
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50"
               >
-                {isCreating ? 'Creando...' : 'Crear Organización'}
+                {isCreating ? "Creando..." : "Crear organizacion"}
               </button>
             </form>
 
             <div className="mt-8 pt-6 border-t border-gray-200">
-              <h4 className="font-medium text-gray-900 mb-4">¿Qué podrás hacer después?</h4>
+              <h4 className="font-medium text-gray-900 mb-4">Que podras hacer despues?</h4>
               <div className="space-y-3">
                 <div className="flex items-center space-x-3 text-sm text-gray-600">
                   <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span>Crear y gestionar múltiples sucursales</span>
+                  <span>Crear y gestionar multiples sucursales</span>
                 </div>
                 <div className="flex items-center space-x-3 text-sm text-gray-600">
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -98,27 +142,18 @@ const Dashboard = () => {
     );
   }
 
-  const stats = [
-    { label: 'Miembros Activos', value: '1,247', icon: Users, color: 'from-blue-600 to-blue-700' },
-    { label: 'Ingresos Mes', value: '$45,230', icon: CreditCard, color: 'from-green-600 to-green-700' },
-    { label: 'Clases Programadas', value: '156', icon: Calendar, color: 'from-purple-600 to-purple-700' },
-    { label: 'Equipos Activos', value: '89', icon: Activity, color: 'from-orange-600 to-orange-700' },
-  ];
-
   return (
     <div className="flex-1 p-8 bg-gray-50">
-      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel de Control</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel de control</h1>
         <p className="text-gray-600">Bienvenido de vuelta, {user?.name}</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat, index) => {
+        {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200">
+            <div key={stat.label} className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">{stat.label}</p>
@@ -133,60 +168,63 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Actividad Reciente</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Actividad reciente</h3>
           <div className="space-y-4">
             <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                 <Users className="w-4 h-4 text-blue-600" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Nuevo miembro registrado</p>
-                <p className="text-xs text-gray-500">hace 2 horas</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Pago procesado - $89.00</p>
-                <p className="text-xs text-gray-500">hace 4 horas</p>
+                <p className="text-sm font-medium text-gray-900">Miembros totales</p>
+                <p className="text-xs text-gray-500">{miembros.length} registrados</p>
               </div>
             </div>
             <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
               <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                <Dumbbell className="w-4 h-4 text-purple-600" />
+                <Building2 className="w-4 h-4 text-purple-600" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">Nueva rutina creada</p>
-                <p className="text-xs text-gray-500">hace 1 día</p>
+                <p className="text-sm font-medium text-gray-900">Sucursales activas</p>
+                <p className="text-xs text-gray-500">{sucursales.length} en total</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900">Proximos pasos</p>
+                <p className="text-xs text-gray-500">Agrega nuevas clases o rutinas</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen Financiero</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen general</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Ingresos Mensuales</span>
-              <span className="font-semibold text-green-600">+$45,230</span>
+              <span className="text-sm text-gray-600">Organizacion</span>
+              <span className="font-semibold text-gray-900">{empresa.name}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Gastos Operativos</span>
-              <span className="font-semibold text-red-600">-$12,450</span>
+              <span className="text-sm text-gray-600">Roles asignados</span>
+              <span className="font-semibold text-gray-900">{user?.role}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Membresías Pendientes</span>
-              <span className="font-semibold text-orange-600">$3,280</span>
+              <span className="text-sm text-gray-600">Miembros activos</span>
+              <span className="font-semibold text-green-600">{miembros.length}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Sucursales</span>
+              <span className="font-semibold text-purple-600">{sucursales.length}</span>
             </div>
             <div className="border-t pt-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-900">Balance Neto</span>
-                <span className="text-lg font-bold text-green-600">$32,780</span>
+                <span className="text-sm font-medium text-gray-900">Estado general</span>
+                <span className="text-lg font-bold text-green-600">Operativo</span>
               </div>
             </div>
           </div>

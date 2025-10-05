@@ -1,69 +1,80 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Building2, MapPin, Hash, Plus, CreditCard as Edit, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from "react";
+import { useAuth } from "../Context/AuthContext";
+import { Building2, MapPin, Hash, Plus, Edit, Trash2 } from "lucide-react";
 
 const Gimnasio = () => {
-  const { user, sucursales, createSucursal } = useAuth();
+  const { user, sucursales, miembros, createSucursal, isLoading } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', code: '', address: '' });
   const [isCreating, setIsCreating] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [formData, setFormData] = useState({ name: "", code: "", address: "", phone: "" });
 
-  if (user?.role !== 'SuperAdmin') {
+  const membersByGym = useMemo(() => {
+    return miembros.reduce((acc, member) => {
+      if (!member.sucursalId) return acc;
+      acc[member.sucursalId] = (acc[member.sucursalId] ?? 0) + 1;
+      return acc;
+    }, {});
+  }, [miembros]);
+
+  if (user?.role !== "SuperAdmin") {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">
           <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso Restringido</h2>
-          <p className="text-gray-600">Solo los SuperAdmin pueden gestionar sucursales.</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso restringido</h2>
+          <p className="text-gray-600">Solo los usuarios con rol SuperAdmin pueden gestionar sucursales.</p>
         </div>
       </div>
     );
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setIsCreating(true);
+    setFormError(null);
 
     try {
       await createSucursal(formData);
-      setFormData({ name: '', code: '', address: '' });
+      setFormData({ name: "", code: "", address: "", phone: "" });
       setShowForm(false);
+    } catch (err) {
+      setFormError(err.message || "No se pudo crear la sucursal");
     } finally {
       setIsCreating(false);
     }
   };
 
-  const handleInputChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleInputChange = (event) => {
+    setFormData((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
   return (
     <div className="flex-1 p-8 bg-gray-50">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestión de Sucursales</h1>
-          <p className="text-gray-600">Administra todas las ubicaciones de tu organización</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestion de sucursales</h1>
+          <p className="text-gray-600">Administra las ubicaciones de tu organizacion</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => setShowForm((current) => !current)}
           className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
         >
           <Plus className="w-5 h-5" />
-          <span>Nueva Sucursal</span>
+          <span>Nueva sucursal</span>
         </button>
       </div>
 
-      {/* Create Form */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-6">Crear Nueva Sucursal</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Crear nueva sucursal</h3>
+          {formError && (
+            <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{formError}</div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre de la Sucursal
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la sucursal</label>
                 <input
                   type="text"
                   name="name"
@@ -75,9 +86,7 @@ const Gimnasio = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Código
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Codigo</label>
                 <input
                   type="text"
                   name="code"
@@ -89,19 +98,30 @@ const Gimnasio = () => {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dirección
-              </label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Dirección completa"
-                required
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Direccion</label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Direccion completa"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Telefono</label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Opcional"
+                />
+              </div>
             </div>
             <div className="flex space-x-4">
               <button
@@ -109,7 +129,7 @@ const Gimnasio = () => {
                 disabled={isCreating}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
               >
-                {isCreating ? 'Creando...' : 'Crear Sucursal'}
+                {isCreating ? "Creando..." : "Crear sucursal"}
               </button>
               <button
                 type="button"
@@ -123,11 +143,10 @@ const Gimnasio = () => {
         </div>
       )}
 
-      {/* Sucursales List */}
       <div className="bg-white rounded-xl shadow-sm">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">
-            Sucursales Existentes ({sucursales.length})
+            Sucursales existentes ({sucursales.length})
           </h3>
         </div>
         <div className="p-6">
@@ -140,7 +159,7 @@ const Gimnasio = () => {
                 onClick={() => setShowForm(true)}
                 className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
               >
-                Crear Primera Sucursal
+                Crear primera sucursal
               </button>
             </div>
           ) : (
@@ -160,11 +179,11 @@ const Gimnasio = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors duration-200">
+                    <div className="flex space-x-2 text-gray-300">
+                      <button className="p-2 hover:text-blue-600 transition-colors duration-200" title="Editar" type="button">
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="p-2 text-gray-400 hover:text-red-600 transition-colors duration-200">
+                      <button className="p-2 hover:text-red-600 transition-colors duration-200" title="Eliminar" type="button">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -176,11 +195,11 @@ const Gimnasio = () => {
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Miembros:</span>
-                      <span className="font-medium">127</span>
+                      <span className="font-medium">{membersByGym[sucursal.id] ?? 0}</span>
                     </div>
                     <div className="flex justify-between text-sm mt-1">
-                      <span className="text-gray-500">Personal:</span>
-                      <span className="font-medium">8</span>
+                      <span className="text-gray-500">Telefono:</span>
+                      <span className="font-medium">{sucursal.phone || "Sin dato"}</span>
                     </div>
                   </div>
                 </div>
@@ -189,6 +208,7 @@ const Gimnasio = () => {
           )}
         </div>
       </div>
+      {isLoading && <div className="mt-4 text-sm text-gray-500">Actualizando datos...</div>}
     </div>
   );
 };

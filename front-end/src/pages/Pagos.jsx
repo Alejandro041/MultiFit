@@ -26,7 +26,7 @@ const Pagos = () => {
   const [plansError, setPlansError] = useState(null);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
-  const isAdmin = ['SuperAdmin', 'AdminGym'].includes(user?.role);
+  const isManager = ['SuperAdmin', 'AdminGym', 'Entrenador'].includes(user?.role);
   const isMember = user?.role === 'Miembro';
 
   useEffect(() => {
@@ -71,7 +71,7 @@ const Pagos = () => {
     [plans, selectedPlanId]
   );
 
-  if (!isAdmin && !isMember) {
+  if (!isManager && !isMember) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">

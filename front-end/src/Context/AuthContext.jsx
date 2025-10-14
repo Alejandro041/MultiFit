@@ -4,6 +4,7 @@ import { loginWithSupabase, signUpWithSupabase, refreshSupabaseToken, updateSupa
 
 
 import { setAuthToken, get, post, put, del } from "../services/apiClient";
+import { getRolePermissions } from "../constants/accessControl";
 
 const STORAGE_KEY = "multifit.session";
 
@@ -182,18 +183,43 @@ export const AuthProvider = ({ children }) => {
 
       setEmpresa(activeOrg);
 
-      const gyms = (Array.isArray(gymsList) ? gymsList : []).filter((gym) => !activeOrg || gym.organization_id === activeOrg.id);
-      setSucursales(gyms);
+      const gyms = (Array.isArray(gymsList) ? gymsList : []).filter(
+        (gym) => !activeOrg || gym.organization_id === activeOrg.id
+      );
 
       const personasData = Array.isArray(personasList) ? personasList : [];
       const miembrosData = Array.isArray(miembrosList) ? miembrosList : [];
       setPersonas(personasData);
-      setMiembros(buildMemberList(personasData, miembrosData, gyms));
+
+      const combinedMembers = buildMemberList(personasData, miembrosData, gyms);
 
       const roleId = userOrganizations[0]?.rol_id ?? null;
       const roleName = roleId
-        ? (Array.isArray(rolesList) ? rolesList : []).find((role) => role.id === roleId)?.name ?? "Usuario"
-        : "Usuario";
+        ? (Array.isArray(rolesList) ? rolesList : []).find((role) => role.id === roleId)?.name ?? "Miembro"
+        : "Miembro";
+
+      const roleDetails = getRolePermissions(roleName);
+      const personaGymId = personaRow?.gym_id ?? null;
+
+      const accessibleGyms =
+        roleDetails.limitToAssignedGym && personaGymId
+          ? gyms.filter((gym) => gym.id === personaGymId)
+          : roleDetails.limitToAssignedGym
+          ? []
+          : gyms;
+
+      setSucursales(accessibleGyms);
+
+      const visibleMembers =
+        roleDetails.limitToAssignedGym && personaGymId
+          ? combinedMembers.filter((member) => member.sucursalId === personaGymId)
+          : roleDetails.limitToAssignedGym
+          ? []
+          : combinedMembers;
+
+      setMiembros(visibleMembers);
+
+      const assignedGym = accessibleGyms.find((gym) => gym.id === personaGymId) ?? null;
 
       setUser({
         id: userRow?.id ?? userId,
@@ -201,7 +227,11 @@ export const AuthProvider = ({ children }) => {
         name: personaRow
           ? `${personaRow.first_name ?? ""} ${personaRow.last_name ?? ""}`.trim() || personaRow.email
           : activeSession.user.email,
-        role: roleName
+        role: roleName,
+        gymId: personaGymId,
+        gymName: assignedGym?.name ?? null,
+        permissions: roleDetails.capabilities,
+        limitToAssignedGym: roleDetails.limitToAssignedGym
       });
     } catch (err) {
       console.error("Failed to hydrate context", err);

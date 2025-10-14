@@ -10,6 +10,7 @@ import Miembros from './pages/Miembros';
 import Planificaciones from './pages/Planificaciones';
 import Pagos from './pages/Pagos';
 import Sidebar from './components/Sidebar';
+import { ROUTE_ACCESS, getDefaultRouteForRole } from './constants/accessControl';
 
 const ProtectedLayout = ({ children }) => {
   const { user, empresa, updatePassword } = useAuth();
@@ -161,6 +162,22 @@ const ProtectedLayout = ({ children }) => {
   );
 };
 
+const ProtectedRoute = ({ element, path }) => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const allowedRoles = ROUTE_ACCESS[path];
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    const fallbackRoute = getDefaultRouteForRole(user.role);
+    return <Navigate to={fallbackRoute} replace />;
+  }
+
+  return <ProtectedLayout>{element}</ProtectedLayout>;
+};
+
 function AppRoutes() {
   const { isLoading, user } = useAuth();
 
@@ -172,73 +189,33 @@ function AppRoutes() {
     );
   }
 
+  const defaultRoute = user ? getDefaultRouteForRole(user.role) : '/login';
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+      <Route
+        path="/login"
+        element={user ? <Navigate to={defaultRoute} replace /> : <Login />}
+      />
       <Route
         path="/dashboard"
-        element={
-          user ? (
-            <ProtectedLayout>
-              <Dashboard />
-            </ProtectedLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={<ProtectedRoute path="/dashboard" element={<Dashboard />} />}
       />
       <Route
         path="/gimnasio"
-        element={
-          user ? (
-            <ProtectedLayout>
-              <Gimnasio />
-            </ProtectedLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={<ProtectedRoute path="/gimnasio" element={<Gimnasio />} />}
       />
       <Route
         path="/miembros"
-        element={
-          user ? (
-            <ProtectedLayout>
-              <Miembros />
-            </ProtectedLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={<ProtectedRoute path="/miembros" element={<Miembros />} />}
       />
       <Route
         path="/planificaciones"
-        element={
-          user ? (
-            <ProtectedLayout>
-              <Planificaciones />
-            </ProtectedLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
+        element={<ProtectedRoute path="/planificaciones" element={<Planificaciones />} />}
       />
-      <Route
-        path="/pagos"
-        element={
-          user ? (
-            <ProtectedLayout>
-              <Pagos />
-            </ProtectedLayout>
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="*"
-        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />}
-      />
+      <Route path="/pagos" element={<ProtectedRoute path="/pagos" element={<Pagos />} />} />
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
     </Routes>
   );
 }

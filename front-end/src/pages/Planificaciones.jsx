@@ -35,10 +35,10 @@ const Planificaciones = () => {
     capacity: ''
   });
 
-  const allowedRoles = ['SuperAdmin', 'AdminGym', 'Entrenador', 'Miembro'];
-  const canManagePlanificaciones = ['SuperAdmin', 'AdminGym', 'Entrenador'].includes(user?.role);
+  const canViewPlanificaciones = user?.permissions?.canViewPlans ?? false;
+  const canManagePlanificaciones = user?.permissions?.canManagePlans ?? false;
 
-  if (!allowedRoles.includes(user?.role)) {
+  if (!canViewPlanificaciones) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">

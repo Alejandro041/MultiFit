@@ -8,6 +8,8 @@ const Gimnasio = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState(null);
   const [formData, setFormData] = useState({ name: "", code: "", address: "", phone: "" });
+  const canAccessGyms = ["SuperAdmin", "AdminGym"].includes(user?.role);
+  const canManageGyms = user?.permissions?.canManageGyms ?? false;
 
   const membersByGym = useMemo(() => {
     return miembros.reduce((acc, member) => {
@@ -57,6 +59,12 @@ const Gimnasio = () => {
     }
   }, [activeOverviewTab, gyms, trainers]);
 
+  useEffect(() => {
+    if (!canManageGyms) {
+      setShowForm(false);
+    }
+  }, [canManageGyms]);
+
   const selectedGym = useMemo(
     () => gyms.find((gym) => gym.id === selectedGymId) ?? (gyms[0] ?? null),
     [gyms, selectedGymId]
@@ -82,13 +90,13 @@ const Gimnasio = () => {
     [selectedTrainer]
   );
 
-  if (user?.role !== "SuperAdmin") {
+  if (!canAccessGyms) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">
           <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Acceso restringido</h2>
-          <p className="text-gray-600">Solo los usuarios con rol SuperAdmin pueden gestionar sucursales.</p>
+          <p className="text-gray-600">Solo los usuarios con permisos de administración pueden gestionar sucursales.</p>
         </div>
       </div>
     );
@@ -98,6 +106,12 @@ const Gimnasio = () => {
     event.preventDefault();
     setIsCreating(true);
     setFormError(null);
+
+    if (!canManageGyms) {
+      setFormError("No tienes permisos para crear sucursales");
+      setIsCreating(false);
+      return;
+    }
 
     try {
       await createSucursal(formData);
@@ -121,16 +135,23 @@ const Gimnasio = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestion de sucursales</h1>
           <p className="text-gray-600">Administra las ubicaciones de tu organizacion</p>
         </div>
-        <button
-          onClick={() => setShowForm((current) => !current)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nueva sucursal</span>
-        </button>
+        {canManageGyms ? (
+          <button
+            type="button"
+            onClick={() => setShowForm((current) => !current)}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nueva sucursal</span>
+          </button>
+        ) : (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+            Vista de solo lectura
+          </div>
+        )}
       </div>
 
-      {showForm && (
+      {canManageGyms && showForm && (
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Crear nueva sucursal</h3>
           {formError && (

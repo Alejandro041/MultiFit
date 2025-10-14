@@ -18,12 +18,20 @@ import {
   Copy
 } from "lucide-react";
 
-const roleOptions = [
-  "Miembro",
-  "Entrenador",
-  "AdminGym",
-  "SuperAdmin"
-];
+const resolveAssignableRoles = (creatorRole) => {
+  switch (creatorRole) {
+    case "SuperAdmin":
+      return ["Miembro", "Entrenador", "AdminGym", "SuperAdmin"];
+    case "AdminGym":
+      return ["Miembro", "Entrenador"];
+    case "Entrenador":
+      return ["Miembro"];
+    default:
+      return [];
+  }
+};
+
+const ROLE_FILTER_ORDER = ["Miembro", "Entrenador", "AdminGym", "SuperAdmin"];
 
 const buildSuccessMessage = (snapshot) => {
   if (!snapshot) return "";
@@ -61,6 +69,28 @@ const Miembros = () => {
   const [createdAccount, setCreatedAccount] = useState(lastCreatedAccount?.account ?? null);
   const [successMessage, setSuccessMessage] = useState(buildSuccessMessage(lastCreatedAccount));
   const [copiedField, setCopiedField] = useState(null);
+  const canManageMembers = user?.permissions?.canManageMembers ?? false;
+
+  const assignableRoles = useMemo(() => {
+    const baseOptions = resolveAssignableRoles(user?.role);
+    if (!baseOptions.length) {
+      return [];
+    }
+    return baseOptions.filter((option) => {
+      if (option === "Entrenador") {
+        return user?.permissions?.canManageTrainers;
+      }
+      if (option === "AdminGym" || option === "SuperAdmin") {
+        return user?.role === "SuperAdmin";
+      }
+      return true;
+    });
+  }, [user?.role, user?.permissions?.canManageTrainers]);
+
+  const roleFilterOptions = useMemo(() => {
+    const availableRoles = new Set(miembros.map((member) => member.role));
+    return ROLE_FILTER_ORDER.filter((role) => availableRoles.has(role));
+  }, [miembros]);
 
   useEffect(() => {
     if (lastCreatedAccount) {
@@ -73,7 +103,14 @@ const Miembros = () => {
     }
   }, [lastCreatedAccount]);
 
-  const allowedRoles = ["SuperAdmin", "AdminGym", "Entrenador"];
+  useEffect(() => {
+    if (assignableRoles.length === 0) {
+      return;
+    }
+    if (!assignableRoles.includes(formData.role)) {
+      setFormData((current) => ({ ...current, role: assignableRoles[0] }));
+    }
+  }, [assignableRoles, formData.role]);
 
   const handleCopyCredential = async (value, field) => {
     if (!value || !(navigator?.clipboard?.writeText)) return;
@@ -97,7 +134,7 @@ const Miembros = () => {
 
 
 
-  if (!allowedRoles.includes(user?.role)) {
+  if (!canManageMembers) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">
@@ -114,18 +151,28 @@ const Miembros = () => {
     setIsCreating(true);
     setFormError(null);
     setSuccessMessage("");
-     setCreatedAccount(null);
-     clearLastCreatedAccount();
+    setCreatedAccount(null);
+    clearLastCreatedAccount();
+
+    if (!assignableRoles.includes(formData.role)) {
+      setFormError("No tienes permisos para asignar ese rol");
+      setIsCreating(false);
+      return;
+    }
 
     try {
-      await createMiembro(formData);
+      const result = await createMiembro(formData);
+      if (result?.account) {
+        setCreatedAccount(result.account);
+        setSuccessMessage(buildSuccessMessage(result));
+      }
       setFormData({
         documentNumber: "",
         name: "",
         email: "",
         phone: "",
         address: "",
-        role: "Miembro",
+        role: assignableRoles[0] ?? "Miembro",
         sucursalId: ""
       });
       setShowModal(false);
@@ -176,8 +223,10 @@ const Miembros = () => {
           <p className="text-gray-600">Administra miembros y personal de tu organizacion</p>
         </div>
         <button
+          type="button"
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+          disabled={assignableRoles.length === 0}
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5" />
           <span>Nuevo miembro</span>
@@ -264,7 +313,7 @@ const Miembros = () => {
               className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">Todos los roles</option>
-              {roleOptions.map((role) => (
+              {roleFilterOptions.map((role) => (
                 <option key={role} value={role}>
                   {role}
                 </option>
@@ -459,7 +508,7 @@ const Miembros = () => {
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
                     >
-                      {roleOptions.map((role) => (
+                      {assignableRoles.map((role) => (
                         <option key={role} value={role}>
                           {role}
                         </option>

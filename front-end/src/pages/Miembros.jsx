@@ -14,7 +14,8 @@ import {
   MapPin,
   Building2,
   UserCheck,
-  Hash
+  Hash,
+  Copy
 } from "lucide-react";
 
 const roleOptions = [
@@ -40,8 +41,33 @@ const Miembros = () => {
     role: "Miembro",
     sucursalId: ""
   });
+  const [createdAccount, setCreatedAccount] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
 
   const allowedRoles = ["SuperAdmin", "AdminGym", "Entrenador"];
+
+  const handleCopyCredential = async (value, field) => {
+    if (!value || !(navigator?.clipboard?.writeText)) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      setCopiedField(null);
+    }
+  };
+
+  const filteredMiembros = useMemo(() => {
+    return miembros.filter((member) => {
+      const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        member.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = filterRole === "all" || member.role === filterRole;
+      return matchesSearch && matchesRole;
+    });
+  }, [miembros, searchTerm, filterRole]);
+
+
+
   if (!allowedRoles.includes(user?.role)) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
@@ -54,22 +80,14 @@ const Miembros = () => {
     );
   }
 
-  const filteredMiembros = useMemo(() => {
-    return miembros.filter((member) => {
-      const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesRole = filterRole === "all" || member.role === filterRole;
-      return matchesSearch && matchesRole;
-    });
-  }, [miembros, searchTerm, filterRole]);
-
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsCreating(true);
     setFormError(null);
 
     try {
-      await createMiembro(formData);
+      const result = await createMiembro(formData);
+      setCreatedAccount(result?.account ?? null);
       setFormData({
         documentNumber: "",
         name: "",
@@ -81,6 +99,7 @@ const Miembros = () => {
       });
       setShowModal(false);
     } catch (err) {
+      setCreatedAccount(null);
       setFormError(err.message || "No se pudo crear el miembro");
     } finally {
       setIsCreating(false);
@@ -133,6 +152,54 @@ const Miembros = () => {
           <span>Nuevo miembro</span>
         </button>
       </div>
+
+      {createdAccount && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Credenciales temporales generadas</p>
+              <p className="text-xs text-blue-700">Comparte esta informacion con el miembro y pideles que actualicen la contrasena en su primer ingreso.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreatedAccount(null)}
+              className="text-xs font-medium text-blue-700 hover:text-blue-900"
+            >
+              Ocultar
+            </button>
+          </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-lg bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase text-gray-500">Email</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-gray-900 break-all">{createdAccount.email}</p>
+                <button
+                  type="button"
+                  onClick={() => handleCopyCredential(createdAccount.email, 'email')}
+                  className="inline-flex items-center rounded-md border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                >
+                  <Copy className="mr-1 h-4 w-4" />
+                  {copiedField === 'email' ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold uppercase text-gray-500">Contrasena temporal</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-sm font-mono text-gray-900">{createdAccount.temporaryPassword}</p>
+                <button
+                  type="button"
+                  onClick={() => handleCopyCredential(createdAccount.temporaryPassword, 'password')}
+                  className="inline-flex items-center rounded-md border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                >
+                  <Copy className="mr-1 h-4 w-4" />
+                  {copiedField === 'password' ? 'Copiado' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
         <div className="flex flex-col md:flex-row gap-4">

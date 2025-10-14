@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+﻿import { supabase } from "./supabaseClient";
 
 const normalizeSessionPayload = ({ session, user }) => {
   if (!session || !session.access_token) {
@@ -57,3 +57,14 @@ export const refreshSupabaseToken = async (refreshToken) => {
 
   return normalizeSessionPayload(data);
 };
+
+export const updateSupabasePassword = async (newPassword) => {
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (error) {
+    throw new Error(error.message || "No se pudo actualizar la contrasena");
+  }
+
+  return data;
+};
+

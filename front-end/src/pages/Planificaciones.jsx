@@ -35,7 +35,10 @@ const Planificaciones = () => {
     capacity: ''
   });
 
-  if (!['SuperAdmin', 'AdminGym', 'Entrenador'].includes(user?.role)) {
+  const allowedRoles = ['SuperAdmin', 'AdminGym', 'Entrenador', 'Miembro'];
+  const canManagePlanificaciones = ['SuperAdmin', 'AdminGym', 'Entrenador'].includes(user?.role);
+
+  if (!allowedRoles.includes(user?.role)) {
     return (
       <div className="flex-1 p-8 bg-gray-50">
         <div className="max-w-md mx-auto text-center">
@@ -48,6 +51,7 @@ const Planificaciones = () => {
   }
 
   const handleOpenModal = (type) => {
+    if (!canManagePlanificaciones) return;
     setModalType(type);
     setShowModal(true);
   };
@@ -155,6 +159,13 @@ const Planificaciones = () => {
         </div>
       </div>
 
+      {!canManagePlanificaciones && (
+        <div className="mb-8 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+          <p className="font-medium">Estas viendo las rutinas y clases disponibles.</p>
+          <p className="text-xs text-blue-700">Contacta a tu entrenador si necesitas realizar ajustes en tu plan.</p>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm mb-8">
         <div className="border-b border-gray-200">
@@ -194,13 +205,15 @@ const Planificaciones = () => {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Rutinas de Ejercicios</h3>
-                <button
-                  onClick={() => handleOpenModal('rutina')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nueva Rutina</span>
-                </button>
+                {canManagePlanificaciones && (
+                  <button
+                    onClick={() => handleOpenModal('rutina')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nueva Rutina</span>
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -240,13 +253,15 @@ const Planificaciones = () => {
             <div>
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Clases Programadas</h3>
-                <button
-                  onClick={() => handleOpenModal('clase')}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nueva Clase</span>
-                </button>
+                {canManagePlanificaciones && (
+                  <button
+                    onClick={() => handleOpenModal('clase')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nueva Clase</span>
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -294,7 +309,7 @@ const Planificaciones = () => {
       </div>
 
       {/* Modal */}
-      {showModal && (
+      {canManagePlanificaciones && showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">

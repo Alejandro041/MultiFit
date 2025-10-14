@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../Context/AuthContext";
 import {
@@ -20,13 +20,12 @@ const Sidebar = () => {
   const menuItems = [
     { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["SuperAdmin", "AdminGym", "Entrenador", "Miembro"] },
     { path: "/miembros", icon: Users, label: "Miembros", roles: ["SuperAdmin", "AdminGym", "Entrenador"] },
-    { path: "/pagos", icon: CreditCard, label: "Pagos", roles: ["SuperAdmin", "AdminGym"] },
-    { path: "/planificaciones", icon: Calendar, label: "Planificaciones", roles: ["SuperAdmin", "AdminGym", "Entrenador"] },
+    { path: "/pagos", icon: CreditCard, label: "Pagos", roles: ["SuperAdmin", "AdminGym", "Miembro"] },
+    { path: "/planificaciones", icon: Calendar, label: "Planificaciones", roles: ["SuperAdmin", "AdminGym", "Entrenador", "Miembro"] },
     { path: "/gimnasio", icon: Building2, label: "Sucursales", roles: ["SuperAdmin"] }
   ];
 
   const visibleItems = empresa ? menuItems.filter((item) => item.roles.includes(user.role)) : [];
-
   const isActive = (path) => location.pathname === path;
 
   return (

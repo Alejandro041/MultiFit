@@ -1,4 +1,4 @@
-import asignacionRutina from "./asignacion-rutina";
+﻿import asignacionRutina from "./asignacion-rutina";
 import clase from "./clase";
 import detallePago from "./detalle-pago";
 import gyms from "./gyms";
@@ -12,6 +12,7 @@ import rutina from "./rutina";
 import tipoMembresia from "./tipo-membresia";
 import usuario from "./usuario";
 import usuarioOrganization from "./usuario-organization";
+import memberAccount from "./member-account";
 import bootstrap from "./bootstrap";
 
 export const modules = [
@@ -29,9 +30,11 @@ export const modules = [
   tipoMembresia,
   usuario,
   usuarioOrganization,
+  memberAccount,
   bootstrap
 ];
 
 export type ModuleDefinition = (typeof modules)[number];
 
 export default modules;
+

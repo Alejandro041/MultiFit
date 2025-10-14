@@ -1,6 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { loginWithSupabase, signUpWithSupabase, refreshSupabaseToken } from "../services/authService";
-import { setAuthToken, get, post } from "../services/apiClient";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+
+import { loginWithSupabase, signUpWithSupabase, refreshSupabaseToken, updateSupabasePassword } from "../services/authService";
+
+
+import { setAuthToken, get, post, del } from "../services/apiClient";
 
 const STORAGE_KEY = "multifit.session";
 
@@ -9,7 +12,7 @@ const loadStoredSession = () => {
   if (!raw) return null;
   try {
     return JSON.parse(raw);
-  } catch (_err) {
+  } catch {
     return null;
   }
 };
@@ -21,7 +24,7 @@ const parseRoleFromNotes = (notes) => {
     if (parsed && typeof parsed.appRole === "string") {
       return parsed.appRole;
     }
-  } catch (_err) {
+  } catch {
     // ignore parse errors
   }
   return notes;
@@ -349,8 +352,24 @@ export const AuthProvider = ({ children }) => {
     [empresa, hydrateContext, session]
   );
 
+  const generateAutoDocumentNumber = () => {
+    try {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return `DOC-${crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+      }
+    } catch {
+      // ignore
+    }
+    const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `DOC-${Date.now().toString(36).toUpperCase()}${randomPart}`;
+  };
+
   const createMiembro = useCallback(
     async (payload) => {
+      if (!empresa) {
+        throw new Error("Primero crea una organizacion");
+      }
+
       const {
         documentNumber,
         name,
@@ -361,56 +380,214 @@ export const AuthProvider = ({ children }) => {
         sucursalId
       } = payload;
 
+      if (!email) {
+        throw new Error("Email requerido para generar credenciales");
+      }
+
       const trimmedName = name?.trim() ?? "";
       const [firstName, ...rest] = trimmedName.split(/\s+/);
       const lastName = rest.join(" ") || "SinApellido";
-      const personaResponse = await post("/api/personas", {
-        document_number: documentNumber || `DOC-${Date.now()}`,
-        first_name: firstName || "SinNombre",
-        last_name: lastName,
-        email,
-        phone,
-        address,
-        gym_id: sucursalId || null
-      });
 
-      const persona = personaResponse.data;
+      let persona = null;
+      let miembroCreado = null;
 
-      await post("/api/miembros", {
-        persona_id: persona.id,
-        membership_status: "active",
-        notes: JSON.stringify({ appRole: memberRole || "Miembro" })
-      });
+      try {
+        const resolvedDocumentNumber = documentNumber?.trim() || generateAutoDocumentNumber();
 
-      await hydrateContext(session);
+        const personaResponse = await post("/api/personas", {
+          document_number: resolvedDocumentNumber,
+          first_name: firstName || "SinNombre",
+          last_name: lastName,
+          email,
+          phone,
+          address,
+          gym_id: sucursalId || null
+        });
+
+        persona = personaResponse.data;
+
+        const miembroResponse = await post("/api/miembros", {
+          persona_id: persona.id,
+          membership_status: "active",
+          notes: JSON.stringify({ appRole: memberRole || "Miembro" })
+        });
+
+        miembroCreado = miembroResponse.data;
+
+        const accountResponse = await post("/api/member-accounts", {
+          personaId: persona.id,
+          email,
+          organizationId: empresa.id,
+          roleSlug: (memberRole || "Miembro").toLowerCase(),
+          metadata: {
+            fullName: trimmedName,
+            displayRole: memberRole || "Miembro",
+            sucursalId
+          }
+        });
+
+        await hydrateContext(session);
+
+        return {
+          persona,
+          miembro: miembroCreado,
+          account: accountResponse.data ?? null
+        };
+      } catch (error) {
+        if (miembroCreado?.id) {
+          try {
+            await del(`/api/miembros/${miembroCreado.id}`);
+          } catch {
+            // ignorar limpieza fallida
+          }
+        }
+
+        if (persona?.id) {
+          try {
+            await del(`/api/personas/${persona.id}`);
+          } catch {
+            // ignorar limpieza fallida
+          }
+        }
+
+        throw error;
+      }
     },
-    [hydrateContext, session]
+    [empresa, hydrateContext, session]
   );
 
   const refreshContext = useCallback(async () => {
+
     if (!session) return;
+
     await hydrateContext(session);
+
   }, [session, hydrateContext]);
 
+
+  const updatePassword = useCallback(
+    async (newPassword) => {
+      if (!newPassword || newPassword.length < 8) {
+        throw new Error("La nueva contrasena debe tener al menos 8 caracteres");
+      }
+
+      try {
+        await updateSupabasePassword(newPassword);
+      } catch (err) {
+        setError((current) => current ?? err);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const tenantOverview = useMemo(() => {
+    if (sucursales.length === 0 && miembros.length === 0) {
+      return { gyms: [], trainers: [] };
+    }
+
+    const groupedByGym = miembros.reduce((acc, member) => {
+      const key = member.sucursalId ?? "sin-sucursal";
+      if (!acc[key]) {
+        acc[key] = { members: [], trainers: [] };
+      }
+      if (member.role === "Entrenador") {
+        acc[key].trainers.push(member);
+      } else {
+        acc[key].members.push(member);
+      }
+      return acc;
+    }, {});
+
+    const gymsSummaries = sucursales.map((gym) => {
+      const bucket = groupedByGym[gym.id] ?? { members: [], trainers: [] };
+      return {
+        id: gym.id,
+        name: gym.name,
+        code: gym.code,
+        memberCount: bucket.members.length,
+        trainerCount: bucket.trainers.length,
+        members: bucket.members,
+        trainers: bucket.trainers
+      };
+    });
+
+    if (groupedByGym["sin-sucursal"]) {
+      gymsSummaries.push({
+        id: "sin-sucursal",
+        name: "Sin sucursal",
+        code: "N/A",
+        memberCount: groupedByGym["sin-sucursal"].members.length,
+        trainerCount: groupedByGym["sin-sucursal"].trainers.length,
+        members: groupedByGym["sin-sucursal"].members,
+        trainers: groupedByGym["sin-sucursal"].trainers
+      });
+    }
+
+    const trainerSummaries = miembros
+      .filter((member) => member.role === "Entrenador")
+      .map((trainer) => {
+        const bucket = groupedByGym[trainer.sucursalId ?? "sin-sucursal"] ?? { members: [], trainers: [] };
+        const gym = trainer.sucursalId
+          ? sucursales.find((sucursal) => sucursal.id === trainer.sucursalId) ?? null
+          : null;
+
+        return {
+          id: trainer.id,
+          name: trainer.name,
+          email: trainer.email,
+          phone: trainer.phone,
+          sucursalId: trainer.sucursalId,
+          sucursalName: gym?.name ?? "Sin sucursal",
+          memberCount: bucket.members.length,
+          members: bucket.members
+        };
+      });
+
+    return { gyms: gymsSummaries, trainers: trainerSummaries };
+  }, [sucursales, miembros]);
+
+
   const value = {
+
     user,
+
     empresa,
+
     sucursales,
+
     miembros,
+
+    tenantOverview,
+
     isLoading,
+
     error,
+
     login,
+
     register,
+
     logout,
+
     createEmpresa,
+
     createSucursal,
+
     createMiembro,
+
+    updatePassword,
+
     refreshContext
+
   };
+
+
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -418,3 +595,11 @@ export const useAuth = () => {
   }
   return context;
 };
+
+
+
+
+
+
+
+

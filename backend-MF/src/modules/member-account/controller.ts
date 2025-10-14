@@ -21,6 +21,7 @@ type UsuarioInsert = Database["public"]["Tables"]["usuario"]["Insert"];
 type UsuarioOrganizationInsert = Database["public"]["Tables"]["usuario_organization"]["Insert"];
 
 type PersonaRow = Database["public"]["Tables"]["persona"]["Row"];
+type UsuarioRow = Database["public"]["Tables"]["usuario"]["Row"];
 
 const generateTemporaryPassword = () => {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789@$#";
@@ -82,7 +83,7 @@ export const memberAccountController = {
       .from("usuario")
       .select("id")
       .eq("persona_id", personaId)
-      .maybeSingle();
+      .maybeSingle<UsuarioRow>();
 
     if (existingPersonaError && existingPersonaError.code !== "PGRST116") {
       throw toHttpError(existingPersonaError);
@@ -90,20 +91,6 @@ export const memberAccountController = {
 
     if (existingPersonaUser) {
       throw new AppError("La persona ya tiene una cuenta creada", 409);
-    }
-
-    const { data: existingEmailUser, error: existingEmailError } = await adminClient
-      .from("usuario")
-      .select("id")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
-
-    if (existingEmailError && existingEmailError.code !== "PGRST116") {
-      throw toHttpError(existingEmailError);
-    }
-
-    if (existingEmailUser) {
-      throw new AppError("Ya existe un usuario con ese email", 409);
     }
 
     const { data: roleBySlug, error: roleSlugError } = await adminClient
@@ -134,6 +121,119 @@ export const memberAccountController = {
 
     if (!roleId) {
       throw new AppError("Rol especificado no encontrado", 404);
+    }
+
+    const { data: existingEmailUser, error: existingEmailError } = await adminClient
+      .from("usuario")
+      .select("*")
+      .eq("email", normalizedEmail)
+      .maybeSingle<UsuarioRow>();
+
+    if (existingEmailError && existingEmailError.code !== "PGRST116") {
+      throw toHttpError(existingEmailError);
+    }
+
+    if (existingEmailUser) {
+      if (existingEmailUser.persona_id && existingEmailUser.persona_id !== personaId) {
+        throw new AppError("Ya existe un usuario con ese email", 409);
+      }
+
+      const { data: authUserResult, error: authUserError } = await adminClient.auth.admin.getUserById(
+        existingEmailUser.id
+      );
+
+      if (authUserError && authUserError.message && authUserError.status !== 404) {
+        throw new AppError(authUserError.message, authUserError.status ?? 400);
+      }
+
+      const authUser = authUserResult?.user ?? null;
+
+      if (!authUser) {
+        const { error: removeUsuarioError } = await (adminClient as any)
+          .from("usuario")
+          .delete()
+          .eq("id", existingEmailUser.id);
+
+        if (removeUsuarioError) {
+          throw toHttpError(removeUsuarioError);
+        }
+
+        const { error: removeLinksError } = await (adminClient as any)
+          .from("usuario_organization")
+          .delete()
+          .eq("user_id", existingEmailUser.id);
+
+        if (removeLinksError) {
+          throw toHttpError(removeLinksError);
+        }
+      } else {
+        const regeneratedPassword = generateTemporaryPassword();
+
+        const { error: updateUserError } = await adminClient.auth.admin.updateUserById(
+          existingEmailUser.id,
+          {
+            password: regeneratedPassword,
+            email: normalizedEmail,
+            email_confirm: true,
+            user_metadata: {
+              personaId,
+              organizationId,
+              gymId: personaRow.gym_id,
+              appRole: desiredRole,
+              ...metadata
+            }
+          }
+        );
+
+        if (updateUserError) {
+          throw new AppError(
+            updateUserError.message ?? "No se pudo actualizar el usuario",
+            updateUserError.status ?? 400
+          );
+        }
+
+        const usuarioUpsert: UsuarioInsert = {
+          id: existingEmailUser.id,
+          persona_id: personaId,
+          username: existingEmailUser.username ?? null,
+          email: normalizedEmail,
+          is_active: existingEmailUser.is_active ?? true,
+          last_login: existingEmailUser.last_login ?? null,
+          created_at: existingEmailUser.created_at ?? null,
+          updated_at: null
+        };
+
+        const { error: upsertUserError } = await (adminClient as any)
+          .from("usuario")
+          .upsert(usuarioUpsert, { onConflict: "id" });
+
+        if (upsertUserError) {
+          throw toHttpError(upsertUserError);
+        }
+
+        const usuarioOrganizationInsert: UsuarioOrganizationInsert = {
+          user_id: existingEmailUser.id,
+          organization_id: organizationId,
+          rol_id: roleId,
+          is_active: true,
+          created_at: null
+        };
+
+        const { error: linkError } = await (adminClient as any)
+          .from("usuario_organization")
+          .upsert(usuarioOrganizationInsert, { onConflict: "user_id,organization_id" });
+
+        if (linkError) {
+          throw toHttpError(linkError);
+        }
+
+        res.status(200).json({
+          userId: existingEmailUser.id,
+          email: normalizedEmail,
+          temporaryPassword: regeneratedPassword
+        });
+        return;
+      }
     }
 
     const temporaryPassword = generateTemporaryPassword();
@@ -178,12 +278,12 @@ export const memberAccountController = {
         updated_at: null
       };
 
-      const { error: insertUserError } = await (adminClient as any)
+      const { error: upsertUserError } = await (adminClient as any)
         .from("usuario")
-        .insert(usuarioInsert);
+        .upsert(usuarioInsert, { onConflict: "id" });
 
-      if (insertUserError) {
-        throw toHttpError(insertUserError);
+      if (upsertUserError) {
+        throw toHttpError(upsertUserError);
       }
 
       const usuarioOrganizationInsert: UsuarioOrganizationInsert = {
@@ -196,7 +296,9 @@ export const memberAccountController = {
 
       const { error: linkError } = await (adminClient as any)
         .from("usuario_organization")
-        .insert(usuarioOrganizationInsert);
+        .upsert(usuarioOrganizationInsert, {
+          onConflict: "user_id,organization_id"
+        });
 
       if (linkError) {
         throw toHttpError(linkError);

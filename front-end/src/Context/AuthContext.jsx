@@ -3,7 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { loginWithSupabase, signUpWithSupabase, refreshSupabaseToken, updateSupabasePassword } from "../services/authService";
 
 
-import { setAuthToken, get, post, del } from "../services/apiClient";
+import { setAuthToken, get, post, put, del } from "../services/apiClient";
 
 const STORAGE_KEY = "multifit.session";
 
@@ -64,10 +64,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [empresa, setEmpresa] = useState(null);
   const [sucursales, setSucursales] = useState([]);
+  const [personas, setPersonas] = useState([]);
   const [miembros, setMiembros] = useState([]);
   const [roles, setRoles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [lastCreatedAccount, setLastCreatedAccount] = useState(null);
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
@@ -78,6 +80,7 @@ export const AuthProvider = ({ children }) => {
     setSucursales([]);
     setMiembros([]);
     setRoles([]);
+    setLastCreatedAccount(null);
   }, []);
 
   const persistSession = useCallback((data) => {
@@ -182,9 +185,10 @@ export const AuthProvider = ({ children }) => {
       const gyms = (Array.isArray(gymsList) ? gymsList : []).filter((gym) => !activeOrg || gym.organization_id === activeOrg.id);
       setSucursales(gyms);
 
-      const personas = Array.isArray(personasList) ? personasList : [];
+      const personasData = Array.isArray(personasList) ? personasList : [];
       const miembrosData = Array.isArray(miembrosList) ? miembrosList : [];
-      setMiembros(buildMemberList(personas, miembrosData, gyms));
+      setPersonas(personasData);
+      setMiembros(buildMemberList(personasData, miembrosData, gyms));
 
       const roleId = userOrganizations[0]?.rol_id ?? null;
       const roleName = roleId
@@ -388,31 +392,124 @@ export const AuthProvider = ({ children }) => {
       const [firstName, ...rest] = trimmedName.split(/\s+/);
       const lastName = rest.join(" ") || "SinApellido";
 
-      let persona = null;
+      const resolvedDocumentNumber = (documentNumber ?? "").trim() || generateAutoDocumentNumber();
+      const normalizedDocumentNumber = resolvedDocumentNumber.toLowerCase();
+
+      const personaPayload = {
+        document_number: resolvedDocumentNumber,
+        first_name: firstName || "SinNombre",
+        last_name: lastName,
+        email,
+        phone,
+        address,
+        gym_id: sucursalId || null
+      };
+
+      const findPersonaByDocument = (list) =>
+        Array.isArray(list)
+          ? list.find(
+              (item) => (item?.document_number ?? "").toLowerCase() === normalizedDocumentNumber
+            )
+          : null;
+
+      const computePersonaUpdates = (current) => {
+        if (!current) return {};
+        const updates = {};
+        ([
+          ["document_number", personaPayload.document_number],
+          ["first_name", personaPayload.first_name],
+          ["last_name", personaPayload.last_name],
+          ["email", personaPayload.email],
+          ["phone", personaPayload.phone],
+          ["address", personaPayload.address],
+          ["gym_id", personaPayload.gym_id]
+        ]).forEach(([key, value]) => {
+          if ((current?.[key] ?? null) !== value) {
+            updates[key] = value;
+          }
+        });
+        return updates;
+      };
+
+      let persona = findPersonaByDocument(personas);
+      let personaWasCreated = false;
+      let personaWasUpdated = false;
+
       let miembroCreado = null;
+      let miembroWasCreated = false;
 
       try {
-        const resolvedDocumentNumber = documentNumber?.trim() || generateAutoDocumentNumber();
+        if (persona) {
+          const updates = computePersonaUpdates(persona);
+          if (Object.keys(updates).length > 0) {
+            const personaUpdateResponse = await put(`/api/personas/${persona.id}`, updates);
+            persona = personaUpdateResponse.data;
+            personaWasUpdated = true;
+          }
+        } else {
+          try {
+            const personaResponse = await post("/api/personas", personaPayload);
+            persona = personaResponse.data;
+            personaWasCreated = true;
+          } catch (error) {
+            const message = error?.response?.data?.message || error.message || "";
+            const isDuplicateDocument =
+              message.includes("persona_document_number_key") ||
+              message.toLowerCase().includes("duplicate key");
 
-        const personaResponse = await post("/api/personas", {
-          document_number: resolvedDocumentNumber,
-          first_name: firstName || "SinNombre",
-          last_name: lastName,
-          email,
-          phone,
-          address,
-          gym_id: sucursalId || null
+            if (!isDuplicateDocument) {
+              throw error;
+            }
+
+            const personaListResponse = await get("/api/personas");
+            const fallbackPersona = findPersonaByDocument(personaListResponse?.data);
+
+            if (!fallbackPersona) {
+              throw error;
+            }
+
+            const updates = computePersonaUpdates(fallbackPersona);
+            if (Object.keys(updates).length > 0) {
+              const personaUpdateResponse = await put(`/api/personas/${fallbackPersona.id}`, updates);
+              persona = personaUpdateResponse.data;
+              personaWasUpdated = true;
+            } else {
+              persona = fallbackPersona;
+            }
+          }
+        }
+
+        if (!persona) {
+          throw new Error("No se pudo resolver la persona");
+        }
+
+        setPersonas((current) => {
+          const exists = current.some((item) => item.id === persona.id);
+          if (personaWasCreated) {
+            return [...current, persona];
+          }
+          if (personaWasUpdated) {
+            return exists
+              ? current.map((item) => (item.id === persona.id ? persona : item))
+              : [...current, persona];
+          }
+          return exists ? current : [...current, persona];
         });
 
-        persona = personaResponse.data;
+        const existingMember = miembros.find((member) => member.personaId === persona.id);
 
-        const miembroResponse = await post("/api/miembros", {
-          persona_id: persona.id,
-          membership_status: "active",
-          notes: JSON.stringify({ appRole: memberRole || "Miembro" })
-        });
+        if (existingMember) {
+          miembroCreado = existingMember;
+        } else {
+          const miembroResponse = await post("/api/miembros", {
+            persona_id: persona.id,
+            membership_status: "active",
+            notes: JSON.stringify({ appRole: memberRole || "Miembro" })
+          });
 
-        miembroCreado = miembroResponse.data;
+          miembroCreado = miembroResponse.data;
+          miembroWasCreated = true;
+        }
 
         const accountResponse = await post("/api/member-accounts", {
           personaId: persona.id,
@@ -426,15 +523,30 @@ export const AuthProvider = ({ children }) => {
           }
         });
 
+        const accountData = accountResponse.data ?? null;
+
+        setLastCreatedAccount({
+          persona,
+          miembro: miembroCreado,
+          account: accountData,
+          metadata: {
+            fullName: trimmedName,
+            role: memberRole || "Miembro",
+            email,
+            sucursalId
+          },
+          timestamp: Date.now()
+        });
+
         await hydrateContext(session);
 
         return {
           persona,
           miembro: miembroCreado,
-          account: accountResponse.data ?? null
+          account: accountData
         };
       } catch (error) {
-        if (miembroCreado?.id) {
+        if (miembroWasCreated && miembroCreado?.id) {
           try {
             await del(`/api/miembros/${miembroCreado.id}`);
           } catch {
@@ -442,7 +554,7 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        if (persona?.id) {
+        if (personaWasCreated && persona?.id) {
           try {
             await del(`/api/personas/${persona.id}`);
           } catch {
@@ -450,10 +562,11 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
+        setLastCreatedAccount(null);
         throw error;
       }
     },
-    [empresa, hydrateContext, session]
+    [empresa, hydrateContext, session, personas, miembros]
   );
 
   const refreshContext = useCallback(async () => {
@@ -548,6 +661,10 @@ export const AuthProvider = ({ children }) => {
   }, [sucursales, miembros]);
 
 
+  const clearLastCreatedAccount = useCallback(() => {
+    setLastCreatedAccount(null);
+  }, []);
+
   const value = {
 
     user,
@@ -578,7 +695,11 @@ export const AuthProvider = ({ children }) => {
 
     updatePassword,
 
-    refreshContext
+    refreshContext,
+
+    lastCreatedAccount,
+
+    clearLastCreatedAccount
 
   };
 

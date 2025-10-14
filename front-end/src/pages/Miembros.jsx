@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import {
   Users,
@@ -25,8 +25,25 @@ const roleOptions = [
   "SuperAdmin"
 ];
 
+const buildSuccessMessage = (snapshot) => {
+  if (!snapshot) return "";
+  const password = snapshot.account?.temporaryPassword;
+  if (password) {
+    return `Usuario registrado correctamente. La contrasena temporal es: ${password}`;
+  }
+  return "Usuario registrado correctamente.";
+};
+
 const Miembros = () => {
-  const { user, miembros, sucursales, createMiembro, isLoading } = useAuth();
+  const {
+    user,
+    miembros,
+    sucursales,
+    createMiembro,
+    isLoading,
+    lastCreatedAccount,
+    clearLastCreatedAccount
+  } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
@@ -41,8 +58,20 @@ const Miembros = () => {
     role: "Miembro",
     sucursalId: ""
   });
-  const [createdAccount, setCreatedAccount] = useState(null);
+  const [createdAccount, setCreatedAccount] = useState(lastCreatedAccount?.account ?? null);
+  const [successMessage, setSuccessMessage] = useState(buildSuccessMessage(lastCreatedAccount));
   const [copiedField, setCopiedField] = useState(null);
+
+  useEffect(() => {
+    if (lastCreatedAccount) {
+      setCreatedAccount(lastCreatedAccount.account ?? null);
+      setSuccessMessage(buildSuccessMessage(lastCreatedAccount));
+      setShowModal(false);
+    } else {
+      setCreatedAccount(null);
+      setSuccessMessage("");
+    }
+  }, [lastCreatedAccount]);
 
   const allowedRoles = ["SuperAdmin", "AdminGym", "Entrenador"];
 
@@ -84,10 +113,12 @@ const Miembros = () => {
     event.preventDefault();
     setIsCreating(true);
     setFormError(null);
+    setSuccessMessage("");
+     setCreatedAccount(null);
+     clearLastCreatedAccount();
 
     try {
-      const result = await createMiembro(formData);
-      setCreatedAccount(result?.account ?? null);
+      await createMiembro(formData);
       setFormData({
         documentNumber: "",
         name: "",
@@ -153,6 +184,12 @@ const Miembros = () => {
         </button>
       </div>
 
+      {successMessage && (
+        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-900">
+          {successMessage}
+        </div>
+      )}
+
       {createdAccount && (
         <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -162,7 +199,11 @@ const Miembros = () => {
             </div>
             <button
               type="button"
-              onClick={() => setCreatedAccount(null)}
+              onClick={() => {
+                setCreatedAccount(null);
+                setSuccessMessage("");
+                clearLastCreatedAccount();
+              }}
               className="text-xs font-medium text-blue-700 hover:text-blue-900"
             >
               Ocultar

@@ -819,6 +819,7 @@ export const AuthProvider = ({ children }) => {
       }
       try {
         await del(`/api/miembros/${memberId}`);
+        setMiembros((current) => current.filter((member) => member.id !== memberId)); // FIX: Refresca la lista local sin esperar al rehydrate.
         await hydrateContext(session);
       } catch (err) {
         setError((current) => current ?? err);

@@ -1,0 +1,12 @@
+# Reduce Docker build context size and keep secrets out of the image
+node_modules
+dist
+build
+coverage
+.env
+.env.*
+.git
+.gitignore
+.DS_Store
+npm-debug.log*
+yarn-error.log*

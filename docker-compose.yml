@@ -1,0 +1,41 @@
+services:
+  backend:
+    # Build the backend API image from the local Dockerfile
+    build:
+      context: ./backend-MF
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend-MF/.env
+    ports:
+      - "3001:3001"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3001/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - multifit-network
+
+  frontend:
+    # Build the static frontend bundle and serve it with Nginx
+    build:
+      context: ./front-end
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: always
+    networks:
+      - multifit-network
+
+networks:
+  multifit-network:
+    driver: bridge

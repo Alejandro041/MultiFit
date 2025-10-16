@@ -1,0 +1,12 @@
+# Keep Docker build context lean and avoid leaking secrets
+node_modules
+dist
+build
+coverage
+.env
+.env.*
+.git
+.gitignore
+.DS_Store
+npm-debug.log*
+yarn-error.log*

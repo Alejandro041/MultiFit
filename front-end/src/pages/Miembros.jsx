@@ -76,6 +76,8 @@ const Miembros = () => {
   const [modalMode, setModalMode] = useState("create");
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [deleteCandidate, setDeleteCandidate] = useState(null); // FIX: Track member pending deletion for confirmation modal.
+  const [deleteError, setDeleteError] = useState(null); // FIX: Surface backend errors inside the confirmation modal.
   const canManageMembers = user?.permissions?.canManageMembers ?? false;
 
   const assignableRoles = useMemo(() => {
@@ -246,23 +248,34 @@ const Miembros = () => {
     setShowModal(true);
   };
 
-  const handleDeleteMember = async (member) => {
+  const handleDeleteMember = (member) => {
     if (!member) return;
-    const confirmDelete = window.confirm(
-      `¿Eliminar al miembro ${member.name}? Esta accion no se puede deshacer.`
-    );
-    if (!confirmDelete) return;
+    setDeleteCandidate(member);
+    setDeleteError(null);
+  }; // FIX: Open confirmation modal instead of using window.confirm.
 
-    setDeleteTargetId(member.id);
+  const confirmDeleteMember = async () => {
+    if (!deleteCandidate) return;
+    setDeleteTargetId(deleteCandidate.id);
+    setDeleteError(null);
     try {
-      await deleteMiembro(member.id);
+      await deleteMiembro(deleteCandidate.id);
       setSuccessMessage("Miembro eliminado correctamente.");
+      setDeleteCandidate(null);
     } catch (err) {
-      setFormError(err.message || "No se pudo eliminar el miembro");
+      const message = err?.message || "No se pudo eliminar el miembro";
+      setDeleteError(message);
+      setFormError(message);
     } finally {
       setDeleteTargetId(null);
     }
-  };
+  }; // FIX: Execute delete while managing loading and errors.
+
+  const closeDeleteModal = () => {
+    if (deleteTargetId) return;
+    setDeleteCandidate(null);
+    setDeleteError(null);
+  }; // FIX: Prevent closing modal while request is in-flight.
 
 
 
@@ -493,6 +506,64 @@ const Miembros = () => {
           </table>
         </div>
       </div>
+
+      {deleteCandidate && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900">Confirmar eliminación</h3>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Estás a punto de eliminar al miembro{" "}
+                        <span className="font-medium text-gray-900">{deleteCandidate.name}</span>. Esta acción no se puede deshacer.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={closeDeleteModal}
+                      disabled={deleteTargetId === deleteCandidate.id}
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {deleteError && (
+                    <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {deleteError}
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closeDeleteModal}
+                      className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={deleteTargetId === deleteCandidate.id}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDeleteMember}
+                      className="inline-flex items-center justify-center rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={deleteTargetId === deleteCandidate.id}
+                    >
+                      {deleteTargetId === deleteCandidate.id ? "Eliminando..." : "Eliminar miembro"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )} {/* FIX: Modal de confirmación reutilizando estilos existentes. */}
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 px-4">

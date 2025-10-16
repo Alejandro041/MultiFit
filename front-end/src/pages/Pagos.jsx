@@ -48,6 +48,11 @@ const Pagos = () => {
   const isMember = user?.role === 'Miembro';
   const isSuperAdmin = user?.role === 'SuperAdmin';
 
+  const availableGyms = useMemo(
+    () => (Array.isArray(sucursales) ? sucursales : []),
+    [sucursales]
+  ); // FIX: Initialize gym list before any effect uses it.
+
   useEffect(() => {
     if (membershipPlans.length === 0) {
       setSelectedPlanId(null);
@@ -80,8 +85,6 @@ const Pagos = () => {
     () => membershipPlans.find((plan) => plan.id === selectedPlanId) ?? null,
     [membershipPlans, selectedPlanId]
   );
-
-  const availableGyms = useMemo(() => (Array.isArray(sucursales) ? sucursales : []), [sucursales]);
 
   const sortedPlans = useMemo(() => {
     const list = Array.isArray(membershipPlans) ? [...membershipPlans] : [];

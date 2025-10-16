@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import {
   Users,
@@ -15,7 +15,8 @@ import {
   Building2,
   UserCheck,
   Hash,
-  Copy
+  Copy,
+  ShieldCheck
 } from "lucide-react";
 
 const resolveAssignableRoles = (creatorRole) => {
@@ -48,6 +49,8 @@ const Miembros = () => {
     miembros,
     sucursales,
     createMiembro,
+    updateMiembro,
+    deleteMiembro,
     isLoading,
     lastCreatedAccount,
     clearLastCreatedAccount
@@ -55,7 +58,7 @@ const Miembros = () => {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [formData, setFormData] = useState({
     documentNumber: "",
@@ -64,11 +67,15 @@ const Miembros = () => {
     phone: "",
     address: "",
     role: "Miembro",
-    sucursalId: ""
+    sucursalId: "",
+    status: "active"
   });
   const [createdAccount, setCreatedAccount] = useState(lastCreatedAccount?.account ?? null);
   const [successMessage, setSuccessMessage] = useState(buildSuccessMessage(lastCreatedAccount));
   const [copiedField, setCopiedField] = useState(null);
+  const [modalMode, setModalMode] = useState("create");
+  const [editingMemberId, setEditingMemberId] = useState(null);
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
   const canManageMembers = user?.permissions?.canManageMembers ?? false;
 
   const assignableRoles = useMemo(() => {
@@ -148,39 +155,55 @@ const Miembros = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setIsCreating(true);
+    const isEditMode = modalMode === "edit";
+
+    setIsSaving(true);
     setFormError(null);
     setSuccessMessage("");
-    setCreatedAccount(null);
-    clearLastCreatedAccount();
+    if (!isEditMode) {
+      setCreatedAccount(null);
+      clearLastCreatedAccount();
+    }
 
     if (!assignableRoles.includes(formData.role)) {
       setFormError("No tienes permisos para asignar ese rol");
-      setIsCreating(false);
+      setIsSaving(false);
       return;
     }
 
     try {
-      const result = await createMiembro(formData);
-      if (result?.account) {
-        setCreatedAccount(result.account);
-        setSuccessMessage(buildSuccessMessage(result));
+      if (isEditMode) {
+        await updateMiembro(editingMemberId, formData);
+        setSuccessMessage("Miembro actualizado correctamente.");
+      } else {
+        const result = await createMiembro(formData);
+        if (result?.account) {
+          setCreatedAccount(result.account);
+          setSuccessMessage(buildSuccessMessage(result));
+        }
+        setFormData({
+          documentNumber: "",
+          name: "",
+          email: "",
+          phone: "",
+          address: "",
+          role: assignableRoles[0] ?? "Miembro",
+          sucursalId: "",
+          status: "active"
+        });
       }
-      setFormData({
-        documentNumber: "",
-        name: "",
-        email: "",
-        phone: "",
-        address: "",
-        role: assignableRoles[0] ?? "Miembro",
-        sucursalId: ""
-      });
       setShowModal(false);
+      setModalMode("create");
+      setEditingMemberId(null);
     } catch (err) {
-      setCreatedAccount(null);
-      setFormError(err.message || "No se pudo crear el miembro");
+      if (!isEditMode) {
+        setCreatedAccount(null);
+      }
+      setFormError(
+        err.message || (isEditMode ? "No se pudo actualizar el miembro" : "No se pudo crear el miembro")
+      );
     } finally {
-      setIsCreating(false);
+      setIsSaving(false);
     }
   };
 
@@ -188,6 +211,60 @@ const Miembros = () => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
   };
+
+  const openCreateModal = () => {
+    setModalMode("create");
+    setEditingMemberId(null);
+    setFormData({
+      documentNumber: "",
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      role: assignableRoles[0] ?? "Miembro",
+      sucursalId: "",
+      status: "active"
+    });
+    setFormError(null);
+    setShowModal(true);
+  };
+
+  const handleEditMember = (member) => {
+    setModalMode("edit");
+    setEditingMemberId(member.id);
+    setFormData({
+      documentNumber: member.documentNumber ?? "",
+      name: member.name ?? "",
+      email: member.email ?? "",
+      phone: member.phone ?? "",
+      address: member.address ?? "",
+      role: member.role ?? "Miembro",
+      sucursalId: member.sucursalId ?? "",
+      status: member.status ?? "active"
+    });
+    setFormError(null);
+    setShowModal(true);
+  };
+
+  const handleDeleteMember = async (member) => {
+    if (!member) return;
+    const confirmDelete = window.confirm(
+      `¿Eliminar al miembro ${member.name}? Esta accion no se puede deshacer.`
+    );
+    if (!confirmDelete) return;
+
+    setDeleteTargetId(member.id);
+    try {
+      await deleteMiembro(member.id);
+      setSuccessMessage("Miembro eliminado correctamente.");
+    } catch (err) {
+      setFormError(err.message || "No se pudo eliminar el miembro");
+    } finally {
+      setDeleteTargetId(null);
+    }
+  };
+
+
 
   const getRoleColor = (role) => {
     switch (role) {
@@ -224,7 +301,7 @@ const Miembros = () => {
         </div>
         <button
           type="button"
-          onClick={() => setShowModal(true)}
+          onClick={openCreateModal}
           disabled={assignableRoles.length === 0}
           className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -363,6 +440,9 @@ const Miembros = () => {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">{member.name}</div>
                         <div className="text-sm text-gray-500">ID: {member.personaId.slice(0, 8)}</div>
+                        <div className="text-xs text-gray-400">
+                          Documento: {member.documentNumber || "Sin documento"}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -384,10 +464,19 @@ const Miembros = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                    <button className="text-blue-600 hover:text-blue-900" type="button">
+                    <button
+                      className="text-blue-600 hover:text-blue-900"
+                      type="button"
+                      onClick={() => handleEditMember(member)}
+                    >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button className="text-red-600 hover:text-red-900" type="button">
+                    <button
+                      className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                      type="button"
+                      disabled={deleteTargetId === member.id}
+                      onClick={() => handleDeleteMember(member)}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -409,7 +498,7 @@ const Miembros = () => {
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl">
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Nuevo miembro</h3>
+              <h3 className="text-xl font-semibold text-gray-900">{modalMode === "edit" ? "Editar miembro" : "Nuevo miembro"}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600" type="button">
                 <X className="w-5 h-5" />
               </button>
@@ -525,7 +614,7 @@ const Miembros = () => {
                       name="sucursalId"
                       value={formData.sucursalId}
                       onChange={handleInputChange}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus-border-transparent"
                       required
                     >
                       <option value="">Seleccionar sucursal</option>
@@ -537,19 +626,47 @@ const Miembros = () => {
                     </select>
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+                  <div className="relative">
+                    <ShieldCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus-border-transparent"
+                      required
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                      <option value="suspended">Suspendido</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-6 flex space-x-4">
                 <button
                   type="submit"
-                  disabled={isCreating}
+                  disabled={isSaving}
                   className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
                 >
-                  {isCreating ? "Creando..." : "Crear miembro"}
+                  {modalMode === "edit"
+                    ? isSaving
+                      ? "Guardando..."
+                      : "Guardar cambios"
+                    : isSaving
+                    ? "Creando..."
+                    : "Crear miembro"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setModalMode("create");
+                    setEditingMemberId(null);
+                  }}
                   className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors duration-200"
                 >
                   Cancelar
@@ -566,3 +683,6 @@ const Miembros = () => {
 };
 
 export default Miembros;
+
+
+

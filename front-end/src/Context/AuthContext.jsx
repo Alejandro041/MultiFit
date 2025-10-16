@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+﻿import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { loginWithSupabase, signUpWithSupabase, refreshSupabaseToken, updateSupabasePassword } from "../services/authService";
 
@@ -40,11 +40,13 @@ const buildMemberList = (personas, miembros, gyms) => {
     return {
       id: member.id,
       personaId: member.persona_id,
+      documentNumber: persona?.document_number ?? "",
       name: fullName || persona?.email || "Miembro",
       email: persona?.email ?? "",
       phone: persona?.phone ?? "",
       address: persona?.address ?? "",
       role: parseRoleFromNotes(member.notes) ?? "Miembro",
+      notes: member.notes ?? null,
       status: member.membership_status ?? "active",
       sucursalId: persona?.gym_id ?? null,
       sucursalName: gym?.name ?? "Sin sucursal",
@@ -68,6 +70,9 @@ export const AuthProvider = ({ children }) => {
   const [personas, setPersonas] = useState([]);
   const [miembros, setMiembros] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [membershipPlans, setMembershipPlans] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [currentMember, setCurrentMember] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastCreatedAccount, setLastCreatedAccount] = useState(null);
@@ -81,6 +86,9 @@ export const AuthProvider = ({ children }) => {
     setSucursales([]);
     setMiembros([]);
     setRoles([]);
+    setMembershipPlans([]);
+    setPayments([]);
+    setCurrentMember(null);
     setLastCreatedAccount(null);
   }, []);
 
@@ -158,13 +166,24 @@ export const AuthProvider = ({ children }) => {
         }
       });
 
-      const [rolesList, userOrgList, orgList, gymsList, personasList, miembrosList] = await Promise.all([
+      const [
+        rolesList,
+        userOrgList,
+        orgList,
+        gymsList,
+        personasList,
+        miembrosList,
+        pagosList,
+        membershipTypesList
+      ] = await Promise.all([
         requestData(() => get("/api/roles"), { fallback: [] }),
         requestData(() => get("/api/usuario-organizations"), { fallback: [] }),
         requestData(() => get("/api/organizations"), { fallback: [] }),
         requestData(() => get("/api/gyms"), { fallback: [] }),
         requestData(() => get("/api/personas"), { fallback: [] }),
-        requestData(() => get("/api/miembros"), { fallback: [] })
+        requestData(() => get("/api/miembros"), { fallback: [] }),
+        requestData(() => get("/api/pagos"), { fallback: [] }),
+        requestData(() => get("/api/tipos-membresia"), { fallback: [] })
       ]);
 
       setRoles(Array.isArray(rolesList) ? rolesList : []);
@@ -192,6 +211,17 @@ export const AuthProvider = ({ children }) => {
       setPersonas(personasData);
 
       const combinedMembers = buildMemberList(personasData, miembrosData, gyms);
+      const membershipTypes = Array.isArray(membershipTypesList) ? membershipTypesList : [];
+      setMembershipPlans(membershipTypes);
+
+      const memberMap = new Map(combinedMembers.map((member) => [member.id, member]));
+      const membershipTypeMap = new Map(membershipTypes.map((plan) => [plan.id, plan]));
+      const paymentsData = Array.isArray(pagosList) ? pagosList : [];
+
+      const ownMember =
+        personaRow && combinedMembers.length > 0
+          ? combinedMembers.find((member) => member.personaId === personaRow.id) ?? null
+          : null;
 
       const roleId = userOrganizations[0]?.rol_id ?? null;
       const roleName = roleId
@@ -218,6 +248,73 @@ export const AuthProvider = ({ children }) => {
           : combinedMembers;
 
       setMiembros(visibleMembers);
+      setCurrentMember(ownMember);
+
+      const parseAmount = (value) => {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : 0;
+      };
+
+      const timeValue = (value) => {
+        if (!value) return 0;
+        const timestamp = Date.parse(value);
+        return Number.isFinite(timestamp) ? timestamp : 0;
+      };
+
+      let visiblePayments =
+        roleDetails.capabilities?.canViewPayments !== false
+          ? paymentsData
+              .map((payment) => {
+                const member = memberMap.get(payment.miembro_id);
+                if (!member) {
+                  return null;
+                }
+
+                const plan = payment.membership_type_id
+                  ? membershipTypeMap.get(payment.membership_type_id) ?? null
+                  : null;
+
+                const status = (payment.status ?? "pending").toLowerCase();
+
+                return {
+                  id: payment.id,
+                  memberId: payment.miembro_id,
+                  memberName: member.name,
+                  memberEmail: member.email,
+                  memberDocument: member.documentNumber,
+                  sucursalId: member.sucursalId,
+                  sucursalName: member.sucursalName,
+                  membershipTypeId: payment.membership_type_id ?? null,
+                  type: plan?.name ?? "Pago de membresia",
+                  amount: parseAmount(payment.amount),
+                  status,
+                  paymentDate: payment.payment_date ?? null,
+                  dueDate: payment.due_date ?? null,
+                  method: payment.payment_method ?? "No especificado",
+                  transactionId: payment.transaction_id ?? null,
+                  notes: payment.notes ?? null
+                };
+              })
+              .filter(Boolean)
+          : [];
+
+      if (roleName === "Miembro") {
+        visiblePayments = ownMember
+          ? visiblePayments.filter((payment) => payment.memberId === ownMember.id)
+          : [];
+      } else if (roleDetails.limitToAssignedGym) {
+        visiblePayments = personaGymId
+          ? visiblePayments.filter((payment) => payment.sucursalId === personaGymId)
+          : [];
+      }
+
+      visiblePayments.sort((a, b) => {
+        const aTime = timeValue(a.paymentDate ?? a.dueDate);
+        const bTime = timeValue(b.paymentDate ?? b.dueDate);
+        return bTime - aTime;
+      });
+
+      setPayments(visiblePayments);
 
       const assignedGym = accessibleGyms.find((gym) => gym.id === personaGymId) ?? null;
 
@@ -386,6 +483,46 @@ export const AuthProvider = ({ children }) => {
     [empresa, hydrateContext, session]
   );
 
+  const createMembershipPlan = useCallback(
+    async (payload) => {
+      if (!empresa) {
+        throw new Error("Primero crea una organizacion");
+      }
+
+      const {
+        name,
+        description = null,
+        price,
+        duration_days,
+        features = null,
+        gym_id
+      } = payload;
+
+      if (!gym_id) {
+        throw new Error("Selecciona una sucursal para asignar el plan");
+      }
+
+      const planPayload = {
+        name,
+        description,
+        price,
+        duration_days,
+        gym_id,
+        features
+      };
+
+      try {
+        const response = await post("/api/tipos-membresia", planPayload);
+        await hydrateContext(session);
+        return response?.data ?? null;
+      } catch (err) {
+        setError((current) => current ?? err);
+        throw err;
+      }
+    },
+    [empresa, hydrateContext, session]
+  );
+
   const generateAutoDocumentNumber = () => {
     try {
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -411,7 +548,8 @@ export const AuthProvider = ({ children }) => {
         phone,
         address,
         role: memberRole,
-        sucursalId
+        sucursalId,
+        status: requestedStatus
       } = payload;
 
       if (!email) {
@@ -533,7 +671,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           const miembroResponse = await post("/api/miembros", {
             persona_id: persona.id,
-            membership_status: "active",
+            membership_status: (requestedStatus ?? "active").toLowerCase(),
             notes: JSON.stringify({ appRole: memberRole || "Miembro" })
           });
 
@@ -597,6 +735,159 @@ export const AuthProvider = ({ children }) => {
       }
     },
     [empresa, hydrateContext, session, personas, miembros]
+  );
+
+  const updateMiembro = useCallback(
+    async (memberId, updates = {}) => {
+      if (!memberId) {
+        throw new Error("Identificador de miembro requerido");
+      }
+
+      const member = miembros.find((item) => item.id === memberId);
+      if (!member) {
+        throw new Error("Miembro no encontrado");
+      }
+
+      const persona = personas.find((item) => item.id === member.personaId);
+      if (!persona) {
+        throw new Error("No se encontro la persona asociada al miembro");
+      }
+
+      const trimmedName = (updates.name ?? member.name ?? "").trim();
+      const [firstNameRaw, ...restName] = trimmedName.length > 0 ? trimmedName.split(/\s+/) : [];
+      const firstName = firstNameRaw || persona.first_name || "SinNombre";
+      const lastName = restName.join(" ") || persona.last_name || "SinApellido";
+
+      const resolvedDocument =
+        (updates.documentNumber ?? member.documentNumber ?? persona.document_number ?? "").trim();
+
+      if (!resolvedDocument) {
+        throw new Error("El documento es obligatorio");
+      }
+
+      const resolveGymId = () => {
+        if (updates.sucursalId === "") return null;
+        if (updates.sucursalId !== undefined) return updates.sucursalId || null;
+        if (member.sucursalId === "") return null;
+        return member.sucursalId ?? persona.gym_id ?? null;
+      };
+
+      const personaPayload = {
+        document_number: resolvedDocument,
+        first_name: firstName,
+        last_name: lastName,
+        email: (updates.email ?? persona.email ?? "").trim(),
+        phone: updates.phone ?? persona.phone ?? "",
+        address: updates.address ?? persona.address ?? "",
+        gym_id: resolveGymId()
+      };
+
+      let baseNotes = {};
+      if (typeof member.notes === "string" && member.notes.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(member.notes);
+          if (parsed && typeof parsed === "object") {
+            baseNotes = parsed;
+          }
+        } catch {
+          baseNotes = {};
+        }
+      }
+      baseNotes.appRole = updates.role ?? member.role ?? "Miembro";
+
+      const memberPayload = {
+        membership_status: (updates.status ?? member.status ?? "active").toLowerCase(),
+        notes: JSON.stringify(baseNotes)
+      };
+
+      try {
+        await put(`/api/personas/${persona.id}`, personaPayload);
+        await put(`/api/miembros/${memberId}`, memberPayload);
+        await hydrateContext(session);
+      } catch (err) {
+        setError((current) => current ?? err);
+        throw err;
+      }
+    },
+    [miembros, personas, hydrateContext, session]
+  );
+
+  const deleteMiembro = useCallback(
+    async (memberId) => {
+      if (!memberId) {
+        throw new Error("Identificador de miembro requerido");
+      }
+      try {
+        await del(`/api/miembros/${memberId}`);
+        await hydrateContext(session);
+      } catch (err) {
+        setError((current) => current ?? err);
+        throw err;
+      }
+    },
+    [hydrateContext, session]
+  );
+
+  const recordPayment = useCallback(
+    async ({
+      miembroId,
+      membershipTypeId = null,
+      amount = 0,
+      paymentMethod = null,
+      status = "completed",
+      dueDate = null,
+      notes = null,
+      transactionId = null
+    }) => {
+      if (!miembroId) {
+        throw new Error("Miembro requerido para registrar el pago");
+      }
+
+      const numericAmount = Number(amount ?? 0);
+      const resolvedAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+
+      const toIsoString = (value, fallback) => {
+        if (!value) return fallback;
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+        if (typeof value === "string") {
+          const parsed = Date.parse(value);
+          if (Number.isFinite(parsed)) {
+            return new Date(parsed).toISOString();
+          }
+          return value;
+        }
+        const parsed = Date.parse(value);
+        if (Number.isFinite(parsed)) {
+          return new Date(parsed).toISOString();
+        }
+        return fallback;
+      };
+
+      const nowIso = new Date().toISOString();
+      const payload = {
+        miembro_id: miembroId,
+        membership_type_id: membershipTypeId,
+        amount: resolvedAmount.toFixed(2),
+        payment_method: paymentMethod,
+        status: (status ?? "completed").toLowerCase(),
+        payment_date: nowIso,
+        due_date: toIsoString(dueDate, nowIso),
+        notes,
+        transaction_id: transactionId
+      };
+
+      try {
+        const response = await post("/api/pagos", payload);
+        await hydrateContext(session);
+        return response?.data ?? null;
+      } catch (err) {
+        setError((current) => current ?? err);
+        throw err;
+      }
+    },
+    [hydrateContext, session]
   );
 
   const refreshContext = useCallback(async () => {
@@ -705,6 +996,12 @@ export const AuthProvider = ({ children }) => {
 
     miembros,
 
+    membershipPlans,
+
+    payments,
+
+    currentMember,
+
     tenantOverview,
 
     isLoading,
@@ -722,6 +1019,14 @@ export const AuthProvider = ({ children }) => {
     createSucursal,
 
     createMiembro,
+
+    createMembershipPlan,
+
+    updateMiembro,
+
+    deleteMiembro,
+
+    recordPayment,
 
     updatePassword,
 

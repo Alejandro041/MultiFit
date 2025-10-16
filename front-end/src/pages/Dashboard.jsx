@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import {
   Building2,
@@ -12,10 +12,43 @@ import {
 } from "lucide-react";
 
 const Dashboard = () => {
-  const { user, empresa, sucursales, miembros, createEmpresa, isLoading } = useAuth();
+  const { user, empresa, sucursales, miembros, payments, createEmpresa, isLoading } = useAuth();
   const [organizationName, setOrganizationName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [formError, setFormError] = useState(null);
+
+  const formatCurrency = (value) => {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) {
+      return "$0";
+    }
+    return new Intl.NumberFormat("es-AR", { style: "currency", currency: "USD" }).format(amount);
+  };
+
+  const paymentSummary = useMemo(() => {
+    const list = Array.isArray(payments) ? payments : [];
+    return list.reduce(
+      (acc, payment) => {
+        const amount = Number(payment.amount ?? 0);
+        const normalized = Number.isFinite(amount) ? amount : 0;
+
+        switch (payment.status) {
+          case "completed":
+            acc.completedTotal += normalized;
+            acc.completedCount += 1;
+            break;
+          case "pending":
+            acc.pendingTotal += normalized;
+            acc.pendingCount += 1;
+            break;
+          default:
+            break;
+        }
+        return acc;
+      },
+      { completedTotal: 0, completedCount: 0, pendingTotal: 0, pendingCount: 0 }
+    );
+  }, [payments]);
 
   const stats = useMemo(
     () => [
@@ -33,18 +66,18 @@ const Dashboard = () => {
       },
       {
         label: "Pagos procesados",
-        value: "$0",
+        value: formatCurrency(paymentSummary.completedTotal),
         icon: CreditCard,
         color: "from-green-600 to-green-700"
       },
       {
-        label: "Clases programadas",
-        value: "0",
-        icon: Calendar,
-        color: "from-orange-600 to-orange-700"
+        label: "Pagos pendientes",
+        value: paymentSummary.pendingCount.toString(),
+        icon: Activity,
+        color: "from-yellow-500 to-amber-600"
       }
     ],
-    [miembros.length, sucursales.length]
+    [miembros.length, sucursales.length, paymentSummary.completedTotal, paymentSummary.pendingCount]
   );
 
   const handleCreateOrganization = async (event) => {
@@ -221,6 +254,18 @@ const Dashboard = () => {
               <span className="text-sm text-gray-600">Sucursales</span>
               <span className="font-semibold text-purple-600">{sucursales.length}</span>
             </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Ingresos cobrados</span>
+              <span className="font-semibold text-green-600">
+                {formatCurrency(paymentSummary.completedTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Pagos pendientes</span>
+              <span className="font-semibold text-yellow-600">
+                {paymentSummary.pendingCount} ({formatCurrency(paymentSummary.pendingTotal)})
+              </span>
+            </div>
             <div className="border-t pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-900">Estado general</span>
@@ -235,3 +280,6 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+

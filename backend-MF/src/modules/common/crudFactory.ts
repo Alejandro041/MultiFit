@@ -1,7 +1,7 @@
 import { TypedSupabaseClient } from "../../config/supabase";
 import { Database } from "../../types/database";
 import { AppError } from "../../utils/errors";
-import { assertNoError } from "../../utils/supabase";
+import { assertNoError, toHttpError } from "../../utils/supabase";
 
 export type TableName = keyof Database["public"]["Tables"];
 
@@ -81,10 +81,15 @@ export const createCrudModel = <TName extends TableName>(
       const { data, error } = await table
         .delete()
         .eq(idColumn, id)
-        .select("*")
-        .single();
+        .select("id");
 
-      assertNoError<any>(error as any, data as any);
+      if (error) {
+        throw toHttpError(error);
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new AppError("Resource not found", 404);
+      }
     }
   };
 };

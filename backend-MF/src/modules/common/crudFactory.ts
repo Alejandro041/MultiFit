@@ -78,18 +78,18 @@ export const createCrudModel = <TName extends TableName>(
 
     async remove(client, id) {
       const table = client.from(tableName) as any;
-      const { data, error } = await table
-        .delete()
-        .eq(idColumn, id)
-        .select("id");
+      const { error, count } = await table
+        .delete({ count: "exact" })
+        .eq(idColumn, id);
 
       if (error) {
         throw toHttpError(error);
       }
 
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new AppError("Resource not found", 404);
+      if (typeof count === "number" && count === 0) {
+        throw new AppError("Resource not found", 404); // FIX: Propaga 404 cuando no se eliminan filas.
       }
+      // FIX: Mantén silencio (204) cuando la eliminación fue exitosa.
     }
   };
 };

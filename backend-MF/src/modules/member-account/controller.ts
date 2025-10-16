@@ -135,7 +135,30 @@ export const memberAccountController = {
 
     if (existingEmailUser) {
       if (existingEmailUser.persona_id && existingEmailUser.persona_id !== personaId) {
-        throw new AppError("Ya existe un usuario con ese email", 409);
+        const { data: linkedMembers, error: linkedMembersError } = await adminClient
+          .from("miembro")
+          .select("id")
+          .eq("persona_id", existingEmailUser.persona_id)
+          .limit(1);
+
+        if (linkedMembersError) {
+          throw toHttpError(linkedMembersError);
+        }
+
+        if (Array.isArray(linkedMembers) && linkedMembers.length > 0) {
+          throw new AppError("Ya existe un usuario con ese email", 409);
+        }
+
+        const { error: reassignPersonaError } = await (adminClient as any)
+          .from("usuario")
+          .update({ persona_id: personaId })
+          .eq("id", existingEmailUser.id);
+
+        if (reassignPersonaError) {
+          throw toHttpError(reassignPersonaError);
+        }
+
+        existingEmailUser.persona_id = personaId; // FIX: Realinea el usuario existente con la nueva persona.
       }
 
       const { data: authUserResult, error: authUserError } = await adminClient.auth.admin.getUserById(

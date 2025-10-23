@@ -197,36 +197,69 @@ export const AuthProvider = ({ children }) => {
       const userOrganizations = (Array.isArray(userOrgList) ? userOrgList : []).filter(
         (relation) => relation.user_id === userId && relation.is_active !== false
       );
-      const primaryOrgId = userOrganizations[0]?.organization_id ?? organizations[0]?.id ?? null;
-      const activeOrg = organizations.find((org) => org.id === primaryOrgId) ?? null;
+      const primaryOrgId = userOrganizations[0]?.organization_id ?? null;
+      const activeOrg =
+        primaryOrgId ? organizations.find((org) => org.id === primaryOrgId) ?? null : null;
 
       setEmpresa(activeOrg);
 
-      const gyms = (Array.isArray(gymsList) ? gymsList : []).filter(
-        (gym) => !activeOrg || gym.organization_id === activeOrg.id
-      );
+      const gyms = activeOrg
+        ? (Array.isArray(gymsList) ? gymsList : []).filter(
+            (gym) => gym.organization_id === activeOrg.id
+          )
+        : [];
 
-      const personasData = Array.isArray(personasList) ? personasList : [];
-      const miembrosData = Array.isArray(miembrosList) ? miembrosList : [];
+      const personasData = activeOrg ? (Array.isArray(personasList) ? personasList : []) : [];
+      const miembrosData = activeOrg ? (Array.isArray(miembrosList) ? miembrosList : []) : [];
       setPersonas(personasData);
 
-      const combinedMembers = buildMemberList(personasData, miembrosData, gyms);
-      const membershipTypes = Array.isArray(membershipTypesList) ? membershipTypesList : [];
+      const combinedMembers = activeOrg ? buildMemberList(personasData, miembrosData, gyms) : [];
+      const membershipTypesAll = Array.isArray(membershipTypesList) ? membershipTypesList : [];
+      const membershipTypes = activeOrg
+        ? membershipTypesAll.filter((plan) => gyms.some((gym) => gym.id === plan.gym_id))
+        : [];
       setMembershipPlans(membershipTypes);
 
       const memberMap = new Map(combinedMembers.map((member) => [member.id, member]));
       const membershipTypeMap = new Map(membershipTypes.map((plan) => [plan.id, plan]));
-      const paymentsData = Array.isArray(pagosList) ? pagosList : [];
+      const paymentsSource = Array.isArray(pagosList) ? pagosList : [];
+      const paymentsData = activeOrg
+        ? paymentsSource.filter((payment) => memberMap.has(payment.miembro_id))
+        : [];
 
       const ownMember =
         personaRow && combinedMembers.length > 0
           ? combinedMembers.find((member) => member.personaId === personaRow.id) ?? null
           : null;
 
-      const roleId = userOrganizations[0]?.rol_id ?? null;
-      const roleName = roleId
-        ? (Array.isArray(rolesList) ? rolesList : []).find((role) => role.id === roleId)?.name ?? "Miembro"
-        : "Miembro";
+      const metadataRoleRaw =
+        typeof activeSession.user?.user_metadata?.appRole === "string"
+          ? activeSession.user.user_metadata.appRole.trim()
+          : "";
+      const metadataRoleFromCatalog =
+        metadataRoleRaw && Array.isArray(rolesList)
+          ? rolesList.find(
+              (role) =>
+                typeof role?.name === "string" &&
+                role.name.trim().toLowerCase() === metadataRoleRaw.toLowerCase()
+            )?.name ?? null
+          : null;
+      const fallbackRoleName =
+        metadataRoleFromCatalog || (metadataRoleRaw ? metadataRoleRaw : "SuperAdmin");
+
+      let roleName;
+      if (!userOrganizations.length) {
+        roleName = fallbackRoleName || "SuperAdmin";
+      } else {
+        const roleId = userOrganizations[0]?.rol_id ?? null;
+        roleName = roleId
+          ? (Array.isArray(rolesList) ? rolesList : []).find((role) => role.id === roleId)?.name ?? null
+          : null;
+
+        if (!roleName || roleName.toLowerCase() === "miembro") {
+          roleName = fallbackRoleName || "Miembro";
+        }
+      }
 
       const roleDetails = getRolePermissions(roleName);
       const personaGymId = personaRow?.gym_id ?? null;
@@ -392,7 +425,10 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await signUpWithSupabase(email, password, { full_name: name });
+        const response = await signUpWithSupabase(email, password, {
+          full_name: name,
+          appRole: "SuperAdmin"
+        });
 
         if (response?.access_token) {
           const sessionData = {

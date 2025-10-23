@@ -1,4 +1,17 @@
-﻿import { supabase } from "./supabaseClient";
+import { supabase } from "./supabaseClient";
+
+const normalizeEmail = (value) => {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+};
+
+const ensureEmail = (rawEmail) => {
+  const email = normalizeEmail(rawEmail);
+  if (!email) {
+    throw new Error("Correo electronico requerido");
+  }
+  return email;
+};
 
 const normalizeSessionPayload = ({ session, user }) => {
   if (!session || !session.access_token) {
@@ -14,7 +27,11 @@ const normalizeSessionPayload = ({ session, user }) => {
 };
 
 export const loginWithSupabase = async (email, password) => {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const normalizedEmail = ensureEmail(email);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password
+  });
 
   if (error) {
     throw new Error(error.message || "Credenciales invalidas");
@@ -24,11 +41,32 @@ export const loginWithSupabase = async (email, password) => {
 };
 
 export const signUpWithSupabase = async (email, password, metadata = {}) => {
+  const normalizedEmail = ensureEmail(email);
+  const normalizedMetadata =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...metadata }
+      : {};
+
+  if (
+    Object.prototype.hasOwnProperty.call(normalizedMetadata, "full_name") &&
+    typeof normalizedMetadata.full_name === "string"
+  ) {
+    normalizedMetadata.full_name = normalizedMetadata.full_name.trim();
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(normalizedMetadata, "appRole") &&
+    typeof normalizedMetadata.appRole === "string"
+  ) {
+    const trimmedRole = normalizedMetadata.appRole.trim();
+    normalizedMetadata.appRole = trimmedRole || "SuperAdmin";
+  }
+
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: normalizedEmail,
     password,
     options: {
-      data: metadata
+      data: normalizedMetadata
     }
   });
 
@@ -67,4 +105,3 @@ export const updateSupabasePassword = async (newPassword) => {
 
   return data;
 };
-
